@@ -56,6 +56,11 @@ int main() {
 
     SetTargetFPS(currentFPS);
 
+    /*
+     * Note: camera is attatched to center of character
+     *       by shifting all visuals accordinly
+     *       circPos is tracked as if it were moving in a static environment
+     */
     while (!WindowShouldClose()) { // close button or ESC key
 
         auto moveDelta = GetWASDMovement(GetFrameTime());
@@ -109,17 +114,20 @@ int main() {
                 DrawCircleV(snapped, circleRadius, c);
             }
             */
+            Vector2 circSnapped = {circPos.x + snapToCenter.x, circPos.y + snapToCenter.y};
+            Color c = RED;
+            //DrawCircleV(circSnapped, circleRadius, c);
 
             //DrawTextureEx(playerTex, circPos, 0.f, 2.f, WHITE);
             Rectangle destRec = {
-                circPos.x,
-                circPos.y,
-                (float)frameWidth,
-                (float)frameHeight
+                circPos.x - circleRadius,
+                circPos.y - circleRadius,
+                (float)frameWidth*2.f,
+                (float)frameHeight*2.f
             };
+            destRec.x += snapToCenter.x;
+            destRec.y += snapToCenter.y;
             DrawTexturePro(playerTex, sourceRec, destRec, {0.f, 0.f}, 0.f, WHITE);
-
-            //DrawText("It works!", 350, 280, 20, WHITE);
         }
         EndDrawing();
     }
