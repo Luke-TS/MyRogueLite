@@ -26,13 +26,34 @@ Vector2 GetWASDMovement(const float deltaTime) {
 // dungeon_tileset.png asset starting coordinates
 // note: tileset is a grid of 16x16 squares
 const int gridSquareSize = 16;
-const Vector2 floorTileTexCoord = {0, 7 * gridSquareSize};
-const Vector2 floorTileTexDim = {16, 16};
+
+// (x, y) top left origin of each sprite
+// (w, h) dimensions of sprite
+typedef struct {
+    int x, y, w, h;
+} Sprite;
+
+namespace Sprites {
+    const Sprite floorTiles = {
+        .x = 0 * gridSquareSize,
+        .y = 7 * gridSquareSize,
+        .w = 1 * gridSquareSize,
+        .h = 1 * gridSquareSize
+    };
+    const Sprite characters = {
+        .x = 0 * gridSquareSize,
+        .y = 32 * gridSquareSize,
+        .w = 1 * gridSquareSize,
+        .h = 2 * gridSquareSize,
+    };
+}
 
 int main() {
     srand(time(NULL));
     const std::string assetsPath = std::string(ASSETS_DIR);
+    const std::string tilesetPath = std::string(ASSETS_DIR) + "/dungeon_tileset.png";
 
+    // screen setup
     const int scr_w = 1200;
     const int scr_h = 800;
     InitWindow(scr_w, scr_h, "MyRogueLite");
@@ -40,7 +61,7 @@ int main() {
     const int currentFPS = 120;
 
     // character position (modeled by a circle)
-    const int playerRadius = 32;
+    const int playerRadius = 64;
     Vector2 playerPos = { scr_w/2.f, scr_h/2.f};
     const int maxPlayerPositionHistory = currentFPS / 5.f; // 0.2 second of history
     std::vector<Vector2> playerPositionHistory;
@@ -60,15 +81,11 @@ int main() {
     // tile sprite
     const std::string tileSpritePath = assetsPath + "/dungeon_tileset.png";
     Texture2D tileTex = LoadTexture(tileSpritePath.c_str());
-    Vector2 floorTileOffset = {
-        float(rand() % 20),
-        float(rand() % 2)
-    };
     Rectangle tileSourceRec = {
-        floorTileTexCoord.x + gridSquareSize * floorTileOffset.x,
-        floorTileTexCoord.y + gridSquareSize * floorTileOffset.y,
-        (float)floorTileTexDim.x,
-        (float)floorTileTexDim.y,
+        static_cast<float>(Sprites::floorTiles.x) + (rand() % 20) * gridSquareSize,
+        static_cast<float>(Sprites::floorTiles.y) + (rand() % 2) * gridSquareSize,
+        static_cast<float>(Sprites::floorTiles.w),
+        static_cast<float>(Sprites::floorTiles.h),
     };
 
     SetTargetFPS(currentFPS);
@@ -127,8 +144,8 @@ int main() {
                 Rectangle destRec = {
                     playerPositionHistory[i].x + snapToCenter.x - playerRadius,
                     playerPositionHistory[i].y + snapToCenter.y - playerRadius,
-                    (float)frameWidth*2.f,
-                    (float)frameHeight*2.f,
+                    (float)frameWidth*4.f,
+                    (float)frameHeight*4.f,
                 };
                 DrawTexturePro(playerTex, sourceRec, destRec, {0.f, 0.f}, 0.f, c);
             }
