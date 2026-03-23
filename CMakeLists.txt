@@ -14,3 +14,7 @@ target_link_libraries(MyRogueLite raylib)
 if(UNIX AND NOT APPLE)
     target_link_libraries(MyRogueLite dl pthread)
 endif()
+
+target_compile_definitions(MyRogueLite PRIVATE 
+    ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
+)

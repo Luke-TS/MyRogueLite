@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstring>
 #include <queue>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -37,6 +38,16 @@ int main() {
     Vector2 circPos = { scr_w/2.f, scr_h/2.f};
     const int maxHistory = currentFPS / 4.f; // quarter second of history
     std::vector<Vector2> positionHistory;
+
+    // character sprite
+    std::string assetsPath = std::string(ASSETS_DIR);
+    const std::string playerTexPath = assetsPath + "/rogue_spritesheet.png";
+    Texture2D playerTex = LoadTexture(playerTexPath.c_str());
+
+    int frameWidth = 32;
+    int frameHeight = 32;
+
+    Rectangle sourceRec = { 0, 0, (float)frameWidth, (float)frameHeight };
 
     // tile
     const int tileStartX = 200;
@@ -82,6 +93,7 @@ int main() {
             DrawRectangleRec(tile, SKYBLUE);
 
             // trail
+            /*
             int count = positionHistory.size();
             for(int i = 0; i < count; i++) {
                 float t = (float)i / count;
@@ -96,6 +108,16 @@ int main() {
 
                 DrawCircleV(snapped, circleRadius, c);
             }
+            */
+
+            //DrawTextureEx(playerTex, circPos, 0.f, 2.f, WHITE);
+            Rectangle destRec = {
+                circPos.x,
+                circPos.y,
+                (float)frameWidth,
+                (float)frameHeight
+            };
+            DrawTexturePro(playerTex, sourceRec, destRec, {0.f, 0.f}, 0.f, WHITE);
 
             //DrawText("It works!", 350, 280, 20, WHITE);
         }
