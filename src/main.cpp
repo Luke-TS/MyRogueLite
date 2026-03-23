@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <ctime>
 #include <raylib.h>
 #include <string>
 #include <vector>
@@ -21,7 +23,14 @@ Vector2 GetWASDMovement(const float deltaTime) {
     return result;
 }
 
+// dungeon_tileset.png asset starting coordinates
+// note: tileset is a grid of 16x16 squares
+const int gridSquareSize = 16;
+const Vector2 floorTileTexCoord = {0, 7 * gridSquareSize};
+const Vector2 floorTileTexDim = {16, 16};
+
 int main() {
+    srand(time(NULL));
     const std::string assetsPath = std::string(ASSETS_DIR);
 
     const int scr_w = 1200;
@@ -51,9 +60,16 @@ int main() {
     // tile sprite
     const std::string tileSpritePath = assetsPath + "/dungeon_tileset.png";
     Texture2D tileTex = LoadTexture(tileSpritePath.c_str());
-    const int tileWidth = 16;
-    const int tileHeight = 16;
-    Rectangle tileSourceRec = { 16, 16*8, (float)tileWidth, (float)tileHeight};
+    Vector2 floorTileOffset = {
+        float(rand() % 20),
+        float(rand() % 2)
+    };
+    Rectangle tileSourceRec = {
+        floorTileTexCoord.x + gridSquareSize * floorTileOffset.x,
+        floorTileTexCoord.y + gridSquareSize * floorTileOffset.y,
+        (float)floorTileTexDim.x,
+        (float)floorTileTexDim.y,
+    };
 
     SetTargetFPS(currentFPS);
 
