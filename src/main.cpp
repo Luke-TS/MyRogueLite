@@ -48,6 +48,13 @@ int main() {
     const int tileStartY = 100;
     Rectangle tile = {tileStartX, tileStartY, 800, 600};
 
+    // tile sprite
+    const std::string tileSpritePath = assetsPath + "/dungeon_tileset.png";
+    Texture2D tileTex = LoadTexture(tileSpritePath.c_str());
+    const int tileWidth = 16;
+    const int tileHeight = 16;
+    Rectangle tileSourceRec = { 16, 16*8, (float)tileWidth, (float)tileHeight};
+
     SetTargetFPS(currentFPS);
 
     /*
@@ -90,7 +97,8 @@ int main() {
         {
             ClearBackground(BLACK);
 
-            DrawRectangleRec(tile, SKYBLUE);
+            //DrawRectangleRec(tile, SKYBLUE);
+            DrawTexturePro(tileTex, tileSourceRec, tile, {0.f, 0.f}, 0.f, WHITE);
 
             // faded history trail
             int count = playerPositionHistory.size();
