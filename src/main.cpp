@@ -1,8 +1,13 @@
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
 #include <raylib.h>
 #include <string>
 #include <vector>
+
+// header for obaining sprites 
+// from dungeon_tileset.png
+#include "dungeon_tileset.hpp"
 
 const float speed = 50.0f;
 
@@ -23,35 +28,8 @@ Vector2 GetWASDMovement(const float deltaTime) {
     return result;
 }
 
-// dungeon_tileset.png asset starting coordinates
-// note: tileset is a grid of 16x16 squares
-const int gridSquareSize = 16;
-
-// (x, y) top left origin of each sprite
-// (w, h) dimensions of sprite
-typedef struct {
-    int x, y, w, h;
-} Sprite;
-
-namespace Sprites {
-    const Sprite floorTiles = {
-        .x = 0 * gridSquareSize,
-        .y = 7 * gridSquareSize,
-        .w = 1 * gridSquareSize,
-        .h = 1 * gridSquareSize
-    };
-    const Sprite characters = {
-        .x = 0 * gridSquareSize,
-        .y = 32 * gridSquareSize,
-        .w = 1 * gridSquareSize,
-        .h = 2 * gridSquareSize,
-    };
-}
-
 int main() {
     srand(time(NULL));
-    const std::string assetsPath = std::string(ASSETS_DIR);
-    const std::string tilesetPath = std::string(ASSETS_DIR) + "/dungeon_tileset.png";
 
     // screen setup
     const int scr_w = 1200;
@@ -60,33 +38,34 @@ int main() {
 
     const int currentFPS = 120;
 
+    const Texture2D tilesetTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
+
     // character position (modeled by a circle)
     const int playerRadius = 64;
     Vector2 playerPos = { scr_w/2.f, scr_h/2.f};
     const int maxPlayerPositionHistory = currentFPS / 5.f; // 0.2 second of history
     std::vector<Vector2> playerPositionHistory;
 
-    // character sprite
-    const std::string playerTexPath = assetsPath + "/rogue_spritesheet.png";
-    Texture2D playerTex = LoadTexture(playerTexPath.c_str());
-    int frameWidth = 32;
-    int frameHeight = 32;
-    Rectangle sourceRec = { 0, 0, (float)frameWidth, (float)frameHeight };
+    // 17th character in tileset
+    Sprite playerSprite = DungeonTileSet::characterStart; 
+    playerSprite.x += 17 * DungeonTileSet::gridSquareSize;
 
-    // tile
+    // rotating axe around character
+    Sprite axeSprite = DungeonTileSet::weaponsStart;
+    axeSprite.x += 0 * DungeonTileSet::gridSquareSize;
+    const float axeRadius = 64;
+    float axeTheta = 0.f;
+    float axeToCharTheta = 0.f;
+
+    // tile position
     const int tileStartX = 200;
     const int tileStartY = 100;
     Rectangle tile = {tileStartX, tileStartY, 800, 600};
 
-    // tile sprite
-    const std::string tileSpritePath = assetsPath + "/dungeon_tileset.png";
-    Texture2D tileTex = LoadTexture(tileSpritePath.c_str());
-    Rectangle tileSourceRec = {
-        static_cast<float>(Sprites::floorTiles.x) + (rand() % 20) * gridSquareSize,
-        static_cast<float>(Sprites::floorTiles.y) + (rand() % 2) * gridSquareSize,
-        static_cast<float>(Sprites::floorTiles.w),
-        static_cast<float>(Sprites::floorTiles.h),
-    };
+    // random tile sprite
+    Sprite tileSprite = DungeonTileSet::floorTileStart;
+    tileSprite.x += (rand() % 20) * DungeonTileSet::gridSquareSize;
+    tileSprite.y += (rand() % 2)  * DungeonTileSet::gridSquareSize;
 
     SetTargetFPS(currentFPS);
 
@@ -98,9 +77,13 @@ int main() {
      */
     while (!WindowShouldClose()) { // close button or ESC key
 
-        auto moveDelta = GetWASDMovement(GetFrameTime());
+        float deltaTime = GetFrameTime();
+        auto moveDelta = GetWASDMovement(deltaTime);
         playerPos.x += moveDelta.x;
         playerPos.y += moveDelta.y;
+
+        axeTheta += deltaTime * 3.f;
+        axeToCharTheta += deltaTime;
 
         // clamp player to tile
         if((playerPos.x - playerRadius) < tileStartX) {
@@ -131,7 +114,7 @@ int main() {
             ClearBackground(BLACK);
 
             //DrawRectangleRec(tile, SKYBLUE);
-            DrawTexturePro(tileTex, tileSourceRec, tile, {0.f, 0.f}, 0.f, WHITE);
+            DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
 
             // faded history trail
             int count = playerPositionHistory.size();
@@ -144,11 +127,20 @@ int main() {
                 Rectangle destRec = {
                     playerPositionHistory[i].x + snapToCenter.x - playerRadius,
                     playerPositionHistory[i].y + snapToCenter.y - playerRadius,
-                    (float)frameWidth*4.f,
-                    (float)frameHeight*4.f,
+                    (float)playerSprite.width*4.f,
+                    (float)playerSprite.height*4.f,
                 };
-                DrawTexturePro(playerTex, sourceRec, destRec, {0.f, 0.f}, 0.f, c);
+                DrawTexturePro(tilesetTexture, playerSprite, destRec, {0.f, 0.f}, 0.f, c);
             }
+
+            // render axe
+            Rectangle destRec = {
+                playerPos.x + snapToCenter.x + std::cos(axeToCharTheta) * axeRadius,
+                playerPos.y + snapToCenter.y + std::sin(axeToCharTheta) * axeRadius,
+                (float)axeSprite.width*4.f,
+                (float)axeSprite.height*4.f,
+            };
+            DrawTexturePro(tilesetTexture, axeSprite, destRec, {32.f, 64.f}, axeTheta * 180.f/3.14, WHITE);
         }
         EndDrawing();
     }
