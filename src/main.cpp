@@ -1,10 +1,5 @@
-#include "raylib.h"
-#include <cerrno>
-#include <cstddef>
-#include <cstring>
-#include <queue>
+#include <raylib.h>
 #include <string>
-#include <utility>
 #include <vector>
 
 const float speed = 50.0f;
@@ -27,26 +22,25 @@ Vector2 GetWASDMovement(const float deltaTime) {
 }
 
 int main() {
+    const std::string assetsPath = std::string(ASSETS_DIR);
+
     const int scr_w = 1200;
     const int scr_h = 800;
     InitWindow(scr_w, scr_h, "MyRogueLite");
 
-    int currentFPS = 120;
+    const int currentFPS = 120;
 
-    // circle position
-    const int circleRadius = 32;
-    Vector2 circPos = { scr_w/2.f, scr_h/2.f};
-    const int maxHistory = currentFPS / 4.f; // quarter second of history
-    std::vector<Vector2> positionHistory;
+    // character position (modeled by a circle)
+    const int playerRadius = 32;
+    Vector2 playerPos = { scr_w/2.f, scr_h/2.f};
+    const int maxPlayerPositionHistory = currentFPS / 5.f; // 0.2 second of history
+    std::vector<Vector2> playerPositionHistory;
 
     // character sprite
-    std::string assetsPath = std::string(ASSETS_DIR);
     const std::string playerTexPath = assetsPath + "/rogue_spritesheet.png";
     Texture2D playerTex = LoadTexture(playerTexPath.c_str());
-
     int frameWidth = 32;
     int frameHeight = 32;
-
     Rectangle sourceRec = { 0, 0, (float)frameWidth, (float)frameHeight };
 
     // tile
@@ -57,36 +51,37 @@ int main() {
     SetTargetFPS(currentFPS);
 
     /*
-     * Note: camera is attatched to center of character
-     *       by shifting all visuals accordinly
-     *       circPos is tracked as if it were moving in a static environment
+     * Note: camera is attatched to center of player
+     *       by shifting all visuals accordinly.
+     *       playerPos is tracked as if it were 
+     *       moving in a static environment
      */
     while (!WindowShouldClose()) { // close button or ESC key
 
         auto moveDelta = GetWASDMovement(GetFrameTime());
-        circPos.x += moveDelta.x;
-        circPos.y += moveDelta.y;
+        playerPos.x += moveDelta.x;
+        playerPos.y += moveDelta.y;
 
-        // clamp circle to tile
-        if((circPos.x - circleRadius) < tileStartX) {
-            circPos.x = (tileStartX + circleRadius);
-        } else if((circPos.x + circleRadius) > (tileStartX + tile.width)) {
-            circPos.x = (tileStartX + tile.width - circleRadius);
+        // clamp player to tile
+        if((playerPos.x - playerRadius) < tileStartX) {
+            playerPos.x = (tileStartX + playerRadius);
+        } else if((playerPos.x + playerRadius) > (tileStartX + tile.width)) {
+            playerPos.x = (tileStartX + tile.width - playerRadius);
         }
 
-        if((circPos.y - circleRadius) < tileStartY) {
-            circPos.y = (tileStartY + circleRadius);
-        } else if((circPos.y + circleRadius) > (tileStartY + tile.height)) {
-            circPos.y = (tileStartY + tile.height- circleRadius);
+        if((playerPos.y - playerRadius) < tileStartY) {
+            playerPos.y = (tileStartY + playerRadius);
+        } else if((playerPos.y + playerRadius) > (tileStartY + tile.height)) {
+            playerPos.y = (tileStartY + tile.height- playerRadius);
         }
 
-        // manage circle history
-        while (positionHistory.size() > maxHistory) {
-            positionHistory.erase(positionHistory.begin());
+        // manage character history
+        while (playerPositionHistory.size() > maxPlayerPositionHistory) {
+            playerPositionHistory.erase(playerPositionHistory.begin());
         }
-        positionHistory.push_back(circPos);
+        playerPositionHistory.push_back(playerPos);
 
-        Vector2 snapToCenter = {(scr_w / 2.f) - circPos.x, (scr_h / 2.f) - circPos.y};
+        Vector2 snapToCenter = {(scr_w / 2.f) - playerPos.x, (scr_h / 2.f) - playerPos.y};
 
         tile.x = tileStartX + snapToCenter.x;
         tile.y = tileStartY + snapToCenter.y;
@@ -97,37 +92,22 @@ int main() {
 
             DrawRectangleRec(tile, SKYBLUE);
 
-            // trail
-            /*
-            int count = positionHistory.size();
+            // faded history trail
+            int count = playerPositionHistory.size();
             for(int i = 0; i < count; i++) {
                 float t = (float)i / count;
 
-                Color c = RED;
-                c.a = (unsigned char)(255 * t); // fade in
+                Color c = WHITE;
+                c.a = (unsigned char)(255 * t * t); // fade in
 
-                Vector2 snapped = {
-                    positionHistory[i].x + snapToCenter.x,
-                    positionHistory[i].y + snapToCenter.y,
+                Rectangle destRec = {
+                    playerPositionHistory[i].x + snapToCenter.x - playerRadius,
+                    playerPositionHistory[i].y + snapToCenter.y - playerRadius,
+                    (float)frameWidth*2.f,
+                    (float)frameHeight*2.f,
                 };
-
-                DrawCircleV(snapped, circleRadius, c);
+                DrawTexturePro(playerTex, sourceRec, destRec, {0.f, 0.f}, 0.f, c);
             }
-            */
-            Vector2 circSnapped = {circPos.x + snapToCenter.x, circPos.y + snapToCenter.y};
-            Color c = RED;
-            //DrawCircleV(circSnapped, circleRadius, c);
-
-            //DrawTextureEx(playerTex, circPos, 0.f, 2.f, WHITE);
-            Rectangle destRec = {
-                circPos.x - circleRadius,
-                circPos.y - circleRadius,
-                (float)frameWidth*2.f,
-                (float)frameHeight*2.f
-            };
-            destRec.x += snapToCenter.x;
-            destRec.y += snapToCenter.y;
-            DrawTexturePro(playerTex, sourceRec, destRec, {0.f, 0.f}, 0.f, WHITE);
         }
         EndDrawing();
     }
