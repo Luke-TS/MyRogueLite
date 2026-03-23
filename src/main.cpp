@@ -1,8 +1,14 @@
 #include "raylib.h"
+#include <cerrno>
+#include <cstddef>
+#include <cstring>
+#include <queue>
+#include <utility>
+#include <vector>
 
-const float speed = 25.0f;
+const float speed = 50.0f;
 
-Vector2 GetWASDMovement(float deltaTime) {
+Vector2 GetWASDMovement(const float deltaTime) {
     Vector2 result = {0, 0};
     if(IsKeyDown(KEY_D)) {
         result.x += deltaTime*6.0f*speed;
@@ -20,41 +26,76 @@ Vector2 GetWASDMovement(float deltaTime) {
 }
 
 int main() {
-    const int scr_w = 800;
-    const int scr_h = 600;
+    const int scr_w = 1200;
+    const int scr_h = 800;
     InitWindow(scr_w, scr_h, "MyRogueLite");
 
-    int currentFPS = 60;
+    int currentFPS = 120;
 
     // circle position
-    Vector2 deltaCircle = { 0, (float)scr_h/3.f};
+    const int circleRadius = 32;
+    Vector2 circPos = { scr_w/2.f, scr_h/2.f};
+    const int maxHistory = currentFPS / 4.f; // quarter second of history
+    std::vector<Vector2> positionHistory;
+
+    // tile
+    const int tileStartX = 200;
+    const int tileStartY = 100;
+    Rectangle tile = {tileStartX, tileStartY, 800, 600};
 
     SetTargetFPS(currentFPS);
 
     while (!WindowShouldClose()) { // close button or ESC key
 
-        float mouseWheel = GetMouseWheelMove();
-        if(mouseWheel != 0) {
-            currentFPS += (int)mouseWheel;
-            if (currentFPS < 0) currentFPS = 0;
-            SetTargetFPS(currentFPS);
-        }
-
-        // reset key
-        if(IsKeyPressed(KEY_R)) {
-            deltaCircle.x = scr_w/2.0;
-            deltaCircle.y = scr_h/2.0;
-        }
-
         auto moveDelta = GetWASDMovement(GetFrameTime());
-        deltaCircle.x += moveDelta.x;
-        deltaCircle.y += moveDelta.y;
+        circPos.x += moveDelta.x;
+        circPos.y += moveDelta.y;
+
+        // clamp circle to tile
+        if((circPos.x - circleRadius) < tileStartX) {
+            circPos.x = (tileStartX + circleRadius);
+        } else if((circPos.x + circleRadius) > (tileStartX + tile.width)) {
+            circPos.x = (tileStartX + tile.width - circleRadius);
+        }
+
+        if((circPos.y - circleRadius) < tileStartY) {
+            circPos.y = (tileStartY + circleRadius);
+        } else if((circPos.y + circleRadius) > (tileStartY + tile.height)) {
+            circPos.y = (tileStartY + tile.height- circleRadius);
+        }
+
+        // manage circle history
+        while (positionHistory.size() > maxHistory) {
+            positionHistory.erase(positionHistory.begin());
+        }
+        positionHistory.push_back(circPos);
+
+        Vector2 snapToCenter = {(scr_w / 2.f) - circPos.x, (scr_h / 2.f) - circPos.y};
+
+        tile.x = tileStartX + snapToCenter.x;
+        tile.y = tileStartY + snapToCenter.y;
 
         BeginDrawing();
         {
             ClearBackground(BLACK);
 
-            DrawCircleV(deltaCircle, 30, BLUE);
+            DrawRectangleRec(tile, SKYBLUE);
+
+            // trail
+            int count = positionHistory.size();
+            for(int i = 0; i < count; i++) {
+                float t = (float)i / count;
+
+                Color c = RED;
+                c.a = (unsigned char)(255 * t); // fade in
+
+                Vector2 snapped = {
+                    positionHistory[i].x + snapToCenter.x,
+                    positionHistory[i].y + snapToCenter.y,
+                };
+
+                DrawCircleV(snapped, circleRadius, c);
+            }
 
             //DrawText("It works!", 350, 280, 20, WHITE);
         }
