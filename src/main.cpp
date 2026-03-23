@@ -71,9 +71,9 @@ int main() {
 
     /*
      * Note: camera is attatched to center of player
-     *       by shifting all visuals accordinly.
+     *       by shifting all sprites accordinly.
      *       playerPos is tracked as if it were 
-     *       moving in a static environment
+     *       moving in a fixed environment
      */
     while (!WindowShouldClose()) { // close button or ESC key
 
@@ -85,7 +85,7 @@ int main() {
         axeTheta += deltaTime * 3.f;
         axeToCharTheta += deltaTime;
 
-        // clamp player to tile
+        // clamp player position to static tile position
         if((playerPos.x - playerRadius) < tileStartX) {
             playerPos.x = (tileStartX + playerRadius);
         } else if((playerPos.x + playerRadius) > (tileStartX + tile.width)) {
@@ -99,24 +99,28 @@ int main() {
         }
 
         // manage character history
-        while (playerPositionHistory.size() > maxPlayerPositionHistory) {
+        if (playerPositionHistory.size() > maxPlayerPositionHistory) {
             playerPositionHistory.erase(playerPositionHistory.begin());
         }
         playerPositionHistory.push_back(playerPos);
 
-        Vector2 snapToCenter = {(scr_w / 2.f) - playerPos.x, (scr_h / 2.f) - playerPos.y};
+        // difference in player position
+        // and the center of the screen
+        Vector2 deltaToCenter = {(scr_w / 2.f) - playerPos.x, (scr_h / 2.f) - playerPos.y};
 
-        tile.x = tileStartX + snapToCenter.x;
-        tile.y = tileStartY + snapToCenter.y;
+        // adjust tile position by this delta
+        tile.x = tileStartX + deltaToCenter.x;
+        tile.y = tileStartY + deltaToCenter.y;
 
         BeginDrawing();
         {
             ClearBackground(BLACK);
 
-            //DrawRectangleRec(tile, SKYBLUE);
+            // draw tile first
             DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
 
-            // faded history trail
+            // faded player history trail including
+            // the current, fully opaque player position
             int count = playerPositionHistory.size();
             for(int i = 0; i < count; i++) {
                 float t = (float)i / count;
@@ -124,9 +128,10 @@ int main() {
                 Color c = WHITE;
                 c.a = (unsigned char)(255 * t * t); // fade in
 
+                // position is corrected by deltaToCenter
                 Rectangle destRec = {
-                    playerPositionHistory[i].x + snapToCenter.x - playerRadius,
-                    playerPositionHistory[i].y + snapToCenter.y - playerRadius,
+                    playerPositionHistory[i].x + deltaToCenter.x - playerRadius,
+                    playerPositionHistory[i].y + deltaToCenter.y - playerRadius,
                     (float)playerSprite.width*4.f,
                     (float)playerSprite.height*4.f,
                 };
@@ -134,9 +139,10 @@ int main() {
             }
 
             // render axe
+            // position is corrected by deltaToCenter
             Rectangle destRec = {
-                playerPos.x + snapToCenter.x + std::cos(axeToCharTheta) * axeRadius,
-                playerPos.y + snapToCenter.y + std::sin(axeToCharTheta) * axeRadius,
+                playerPos.x + deltaToCenter.x + std::cos(axeToCharTheta) * axeRadius,
+                playerPos.y + deltaToCenter.y + std::sin(axeToCharTheta) * axeRadius,
                 (float)axeSprite.width*4.f,
                 (float)axeSprite.height*4.f,
             };
