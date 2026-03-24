@@ -47,6 +47,23 @@ std::optional<Vector2> boundsPenetration(const Vector2& origin, const int radius
     return Vector2{ px, py };
 }
 
+// Returns nullopt if rec1 is fully inside rec2.
+// Otherwise returns penetration depth of rec1 into rec2 on each axis.
+std::optional<Vector2> boundsPenetration(const Rectangle& rec1, const Rectangle& rec2) {
+    float px = 0.0f, py = 0.0f;
+
+    if      (rec1.x < rec2.x)                        px = rec1.x - rec2.x;
+    else if (rec1.x + rec1.width > rec2.x + rec2.width)  px = (rec1.x + rec1.width) - (rec2.x + rec2.width);
+
+    if      (rec1.y < rec2.y)                        py = rec1.y - rec2.y;
+    else if (rec1.y + rec1.height > rec2.y + rec2.height) py = (rec1.y + rec1.height) - (rec2.y + rec2.height);
+
+    if (px == 0.0f && py == 0.0f)
+        return std::nullopt;
+
+    return Vector2{ px, py };
+}
+
 int main() {
     srand(time(NULL));
 
