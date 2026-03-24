@@ -1,6 +1,8 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <optional>
 #include <raylib.h>
 #include <string>
 #include <vector>
@@ -26,6 +28,23 @@ Vector2 GetWASDMovement(const float deltaTime) {
         result.y += deltaTime*6.0f*speed;
     }
     return result;
+}
+
+// Returns nullopt if the circle is fully enclosed by rec.
+// Otherwise returns penetration depth on each axis.
+std::optional<Vector2> boundsPenetration(const Vector2& origin, const int radius, const Rectangle& rec) {
+    float px = 0.0f, py = 0.0f;
+
+    if      (origin.x - radius < rec.x)              px = (origin.x - radius) - rec.x;
+    else if (origin.x + radius > rec.x + rec.width)  px = (origin.x + radius) - (rec.x + rec.width);
+
+    if      (origin.y - radius < rec.y)              py = (origin.y - radius) - rec.y;
+    else if (origin.y + radius > rec.y + rec.height) py = (origin.y + radius) - (rec.y + rec.height);
+
+    if (px == 0.0f && py == 0.0f)
+        return std::nullopt;
+
+    return Vector2{ px, py };
 }
 
 int main() {
@@ -62,7 +81,9 @@ int main() {
     // tile position
     const int tileStartX = 200;
     const int tileStartY = 100;
-    Rectangle tile = {tileStartX, tileStartY, 800, 600};
+    const int tileWidth  = 800;
+    const int tileHeight = 600;
+    Rectangle tile = {tileStartX, tileStartY, tileWidth, tileHeight};
 
     // random tile sprite
     Sprite tileSprite = DungeonTileSet::floorTileStart;
@@ -87,17 +108,10 @@ int main() {
         axeTheta += deltaTime * 8.f;
         axeToCharTheta += deltaTime * 1.5f;
 
-        // clamp player position to static tile position
-        if((playerPos.x - playerRadius) < tileStartX) {
-            playerPos.x = (tileStartX + playerRadius);
-        } else if((playerPos.x + playerRadius) > (tileStartX + tile.width)) {
-            playerPos.x = (tileStartX + tile.width - playerRadius);
-        }
-
-        if((playerPos.y - playerRadius) < tileStartY) {
-            playerPos.y = (tileStartY + playerRadius);
-        } else if((playerPos.y + playerRadius) > (tileStartY + tile.height)) {
-            playerPos.y = (tileStartY + tile.height- playerRadius);
+        // snap player inside tile
+        if (auto p = boundsPenetration(playerPos, playerRadius, {tileStartX, tileStartY, tileWidth, tileHeight})) {
+            playerPos.x -= p->x;
+            playerPos.y -= p->y;
         }
 
         // manage character history
