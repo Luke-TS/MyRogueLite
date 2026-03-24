@@ -11,73 +11,29 @@
 // from dungeon_tileset.png
 #include "dungeon_tileset.hpp"
 
-const float speed = 50.0f;
+// operator overloads for raylib's Vector2
+// helper functions length() and normalize()
+#include "vec2_ops.hpp"
 
-Vector2 GetWASDMovement(const float deltaTime) {
+// checking intersections and such
+#include "collision_logic.hpp"
+
+const float speed = 300.0f;
+
+// reads WASD input and returns
+// normalized direction vector
+Vector2 GetWASDMovement() {
     Vector2 result = {0, 0};
-    if(IsKeyDown(KEY_D)) {
-        result.x += deltaTime*6.0f*speed;
-    }
-    if(IsKeyDown(KEY_A)) {
-        result.x -= deltaTime*6.0f*speed;
-    }
-    if(IsKeyDown(KEY_W)) {
-        result.y -= deltaTime*6.0f*speed;
-    }
-    if(IsKeyDown(KEY_S)) {
-        result.y += deltaTime*6.0f*speed;
-    }
-    return result;
-}
+    if(IsKeyDown(KEY_D))
+        result.x += 1; // value of 1 is arbitrary
+    if(IsKeyDown(KEY_A))
+        result.x -= 1;
+    if(IsKeyDown(KEY_W))
+        result.y -= 1;
+    if(IsKeyDown(KEY_S))
+        result.y += 1;
 
-// Returns nullopt if the circle is fully enclosed by rec.
-// Otherwise returns penetration depth on each axis.
-std::optional<Vector2> boundsPenetration(const Vector2& origin, const int radius, const Rectangle& rec) {
-    float px = 0.0f, py = 0.0f;
-
-    if      (origin.x - radius < rec.x)              px = (origin.x - radius) - rec.x;
-    else if (origin.x + radius > rec.x + rec.width)  px = (origin.x + radius) - (rec.x + rec.width);
-
-    if      (origin.y - radius < rec.y)              py = (origin.y - radius) - rec.y;
-    else if (origin.y + radius > rec.y + rec.height) py = (origin.y + radius) - (rec.y + rec.height);
-
-    if (px == 0.0f && py == 0.0f)
-        return std::nullopt;
-
-    return Vector2{ px, py };
-}
-
-// Returns nullopt if rec1 is fully inside rec2.
-// Otherwise returns penetration depth of rec1 into rec2 on each axis.
-std::optional<Vector2> boundsPenetration(const Rectangle& rec1, const Rectangle& rec2) {
-    float px = 0.0f, py = 0.0f;
-
-    if      (rec1.x < rec2.x)                        px = rec1.x - rec2.x;
-    else if (rec1.x + rec1.width > rec2.x + rec2.width)  px = (rec1.x + rec1.width) - (rec2.x + rec2.width);
-
-    if      (rec1.y < rec2.y)                        py = rec1.y - rec2.y;
-    else if (rec1.y + rec1.height > rec2.y + rec2.height) py = (rec1.y + rec1.height) - (rec2.y + rec2.height);
-
-    if (px == 0.0f && py == 0.0f)
-        return std::nullopt;
-
-    return Vector2{ px, py };
-}
-
-// Returns nullopt if rec1 and rec2 do not intersect.
-// Otherwise returns how far rec1 has penetrated into rec2 on each axis.
-std::optional<Vector2> rectIntersection(const Rectangle& rec1, const Rectangle& rec2) {
-    const float overlapX = std::min(rec1.x + rec1.width,  rec2.x + rec2.width)  - std::max(rec1.x, rec2.x);
-    const float overlapY = std::min(rec1.y + rec1.height, rec2.y + rec2.height) - std::max(rec1.y, rec2.y);
-
-    if (overlapX <= 0.0f || overlapY <= 0.0f)
-        return std::nullopt;
-
-    // Push out along the axis of least penetration
-    const float px = (rec1.x + rec1.width  * 0.5f) < (rec2.x + rec2.width  * 0.5f) ? -overlapX : overlapX;
-    const float py = (rec1.y + rec1.height * 0.5f) < (rec2.y + rec2.height * 0.5f) ? -overlapY : overlapY;
-
-    return Vector2{ px, py };
+    return normalize(result);
 }
 
 int main() {
@@ -93,7 +49,7 @@ int main() {
     const Texture2D tilesetTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
 
     // character position
-    Vector2 playerPos = { scr_w/2.f, scr_h/2.f};
+    auto playerPos = Vector2{ scr_w, scr_h} / 2.f;
     const int maxPlayerPositionHistory = currentFPS / 8.f; // 0.125 second of history
     std::vector<Vector2> playerPositionHistory;
     // 17th character in tileset
@@ -102,7 +58,7 @@ int main() {
     const float playerScale = 4.f;
 
     // enemy position
-    Vector2 enemyPos = { scr_w/5.f, scr_h/5.f};
+    auto enemyPos = Vector2{ scr_w, scr_h} / 4.f;
     Sprite enemySprite = DungeonTileSet::monsterStart; 
     const float enemyScale = 4.f;
     bool isAlive = true;
@@ -129,7 +85,7 @@ int main() {
 
     Camera2D camera = { 0 };
     camera.target = playerPos;
-    camera.offset = {scr_w/2.f, scr_h/2.f};
+    camera.offset = Vector2{scr_w, scr_h} / 2.f;
     camera.rotation = 0.f;
     camera.zoom = 1.f;
 
@@ -137,56 +93,53 @@ int main() {
 
     while (!WindowShouldClose()) { // close button or ESC key
 
+        // time since last frame render
         float deltaTime = GetFrameTime();
-        auto moveDelta = GetWASDMovement(deltaTime);
-        playerPos.x += moveDelta.x;
-        playerPos.y += moveDelta.y;
 
+        // direction vector of WASD input
+        auto moveDir = GetWASDMovement();
+
+        auto deltaPos = moveDir * deltaTime * speed;
         if(IsKeyPressed(KEY_SPACE)) {
-            playerPos.x += moveDelta.x * currentFPS/3.f;
-            playerPos.y += moveDelta.y * currentFPS/3.f;
+            deltaPos *= currentFPS / 3.f;
         }
 
-        Vector2 enemyToPlayer = {playerPos.x - enemyPos.x,
-                                 playerPos.y - enemyPos.y};
+        playerPos += deltaPos;
 
-        enemyPos.x += enemyToPlayer.x / 500.f;
-        enemyPos.y += enemyToPlayer.y / 500.f;
+        // enemy moves towards player
+        Vector2 enemyToPlayer = playerPos - enemyPos;
+        enemyPos += enemyToPlayer / 500.f;
 
+        // character changing
         if(IsKeyPressed(KEY_RIGHT))
             playerSprite.x += DungeonTileSet::gridSquareSize;
-
         if(IsKeyPressed(KEY_LEFT))
             playerSprite.x -= DungeonTileSet::gridSquareSize;
 
+        // revive enemy to starting position
         if(IsKeyPressed(KEY_R)) {
-            enemyPos = { scr_w/5.f, scr_h/5.f};
+            enemyPos = Vector2{scr_w, scr_h} / 5.f;
             isAlive = true;
         }
 
+        // axe movement
         axeTheta += deltaTime * 8.f;
         axeToCharTheta += deltaTime * 1.5f;
 
+        // entity bounding rectangles
+        // used for intersection and rendering 
         Rectangle playerRec = {
             .x = playerPos.x - (playerSprite.width*playerScale)/2.f,
             .y = playerPos.y - (playerSprite.height*playerScale)/2.f,
             .width = (float)playerSprite.width * playerScale,
             .height = (float)playerSprite.height * playerScale,
         };
-
         Rectangle enemyRec = {
             .x = enemyPos.x - (enemySprite.width*playerScale)/2.f,
             .y = enemyPos.y - (enemySprite.height*playerScale)/2.f,
             .width = (float)enemySprite.width * playerScale,
             .height = (float)enemySprite.height * playerScale,
         };
-
-        // snap player inside tile
-        if (auto p = boundsPenetration( playerRec, {tileStartX, tileStartY, tileWidth, tileHeight})) {
-            playerPos.x -= p->x;
-            playerPos.y -= p->y;
-        }
-
         Rectangle axeRec = {
             playerPos.x + std::cos(axeToCharTheta) * axeRadius,
             playerPos.y + std::sin(axeToCharTheta) * axeRadius,
@@ -194,6 +147,12 @@ int main() {
             (float)axeSprite.height * axeScale,
         };
 
+        // snap player inside tile
+        if (auto p = boundsPenetration( playerRec, {tileStartX, tileStartY, tileWidth, tileHeight})) {
+            playerPos -= *p;
+        }
+
+        // check axe collision with enemy
         if (rectIntersection(enemyRec, axeRec)) {
             isAlive = false;
         }
@@ -225,7 +184,6 @@ int main() {
                     Color c = WHITE;
                     c.a = (unsigned char)(255 * t * t); // fade in
 
-                    // position is corrected by deltaToCenter
                     Rectangle destRec = {
                         playerPositionHistory[i].x,
                         playerPositionHistory[i].y,
@@ -240,28 +198,19 @@ int main() {
                 }
 
                 // draw enemy
-                if(isAlive)
+                if(isAlive) {
                     DrawTexturePro(tilesetTexture, enemySprite, enemyRec, {0, 0}, 0.f, WHITE);
+                }
 
-                // render axe
-                // position is corrected by deltaToCenter
-                Rectangle destRec = {
-                    playerPos.x + std::cos(axeToCharTheta) * axeRadius,
-                    playerPos.y + std::sin(axeToCharTheta) * axeRadius,
-                    (float)axeSprite.width * axeScale,
-                    (float)axeSprite.height * axeScale,
-                };
-
-                Vector2 origin = {
+                Vector2 axeOrigin = {
                     (axeSprite.width * axeScale) / 2.f,
                     (axeSprite.height * axeScale) / 2.f + 4.f * axeScale,
                 };
-
                 DrawTexturePro(
                     tilesetTexture,
                     axeSprite,
-                    destRec,
-                    origin,
+                    axeRec,
+                    axeOrigin,
                     axeTheta * 180.f / 3.14f,
                     WHITE
                 );
