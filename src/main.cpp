@@ -122,11 +122,24 @@ int main() {
         playerPos.x += moveDelta.x;
         playerPos.y += moveDelta.y;
 
+        if(IsKeyPressed(KEY_RIGHT))
+            playerSprite.x += DungeonTileSet::gridSquareSize;
+
+        if(IsKeyPressed(KEY_LEFT))
+            playerSprite.x -= DungeonTileSet::gridSquareSize;
+
         axeTheta += deltaTime * 8.f;
         axeToCharTheta += deltaTime * 1.5f;
 
+        Rectangle playerRec = {
+            .x = playerPos.x - (playerSprite.width*playerScale)/2.f,
+            .y = playerPos.y - (playerSprite.height*playerScale)/2.f,
+            .width = (float)playerSprite.width * playerScale,
+            .height = (float)playerSprite.height * playerScale,
+        };
+
         // snap player inside tile
-        if (auto p = boundsPenetration(playerPos, playerRadius, {tileStartX, tileStartY, tileWidth, tileHeight})) {
+        if (auto p = boundsPenetration( playerRec, {tileStartX, tileStartY, tileWidth, tileHeight})) {
             playerPos.x -= p->x;
             playerPos.y -= p->y;
         }
