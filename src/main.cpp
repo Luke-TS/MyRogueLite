@@ -64,6 +64,22 @@ std::optional<Vector2> boundsPenetration(const Rectangle& rec1, const Rectangle&
     return Vector2{ px, py };
 }
 
+// Returns nullopt if rec1 and rec2 do not intersect.
+// Otherwise returns how far rec1 has penetrated into rec2 on each axis.
+std::optional<Vector2> rectIntersection(const Rectangle& rec1, const Rectangle& rec2) {
+    const float overlapX = std::min(rec1.x + rec1.width,  rec2.x + rec2.width)  - std::max(rec1.x, rec2.x);
+    const float overlapY = std::min(rec1.y + rec1.height, rec2.y + rec2.height) - std::max(rec1.y, rec2.y);
+
+    if (overlapX <= 0.0f || overlapY <= 0.0f)
+        return std::nullopt;
+
+    // Push out along the axis of least penetration
+    const float px = (rec1.x + rec1.width  * 0.5f) < (rec2.x + rec2.width  * 0.5f) ? -overlapX : overlapX;
+    const float py = (rec1.y + rec1.height * 0.5f) < (rec2.y + rec2.height * 0.5f) ? -overlapY : overlapY;
+
+    return Vector2{ px, py };
+}
+
 int main() {
     srand(time(NULL));
 
@@ -76,19 +92,23 @@ int main() {
 
     const Texture2D tilesetTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
 
-    // character position (modeled by a circle)
-    const int playerRadius = 64;
+    // character position
     Vector2 playerPos = { scr_w/2.f, scr_h/2.f};
     const int maxPlayerPositionHistory = currentFPS / 8.f; // 0.125 second of history
     std::vector<Vector2> playerPositionHistory;
-
     // 17th character in tileset
     Sprite playerSprite = DungeonTileSet::characterStart; 
     playerSprite.x += 17 * DungeonTileSet::gridSquareSize;
     const float playerScale = 4.f;
 
+    // enemy position
+    Vector2 enemyPos = { scr_w/5.f, scr_h/5.f};
+    Sprite enemySprite = DungeonTileSet::monsterStart; 
+    const float enemyScale = 4.f;
+    bool isAlive = true;
+
     // rotating axe around character
-    Sprite axeSprite = DungeonTileSet::weaponsStart;
+    Sprite axeSprite = DungeonTileSet::weaponStart;
     axeSprite.x += 0 * DungeonTileSet::gridSquareSize;
     const float axeRadius = 128;
     const float axeScale = 4.f;
@@ -122,11 +142,27 @@ int main() {
         playerPos.x += moveDelta.x;
         playerPos.y += moveDelta.y;
 
+        if(IsKeyPressed(KEY_SPACE)) {
+            playerPos.x += moveDelta.x * currentFPS/3.f;
+            playerPos.y += moveDelta.y * currentFPS/3.f;
+        }
+
+        Vector2 enemyToPlayer = {playerPos.x - enemyPos.x,
+                                 playerPos.y - enemyPos.y};
+
+        enemyPos.x += enemyToPlayer.x / 500.f;
+        enemyPos.y += enemyToPlayer.y / 500.f;
+
         if(IsKeyPressed(KEY_RIGHT))
             playerSprite.x += DungeonTileSet::gridSquareSize;
 
         if(IsKeyPressed(KEY_LEFT))
             playerSprite.x -= DungeonTileSet::gridSquareSize;
+
+        if(IsKeyPressed(KEY_R)) {
+            enemyPos = { scr_w/5.f, scr_h/5.f};
+            isAlive = true;
+        }
 
         axeTheta += deltaTime * 8.f;
         axeToCharTheta += deltaTime * 1.5f;
@@ -138,10 +174,28 @@ int main() {
             .height = (float)playerSprite.height * playerScale,
         };
 
+        Rectangle enemyRec = {
+            .x = enemyPos.x - (enemySprite.width*playerScale)/2.f,
+            .y = enemyPos.y - (enemySprite.height*playerScale)/2.f,
+            .width = (float)enemySprite.width * playerScale,
+            .height = (float)enemySprite.height * playerScale,
+        };
+
         // snap player inside tile
         if (auto p = boundsPenetration( playerRec, {tileStartX, tileStartY, tileWidth, tileHeight})) {
             playerPos.x -= p->x;
             playerPos.y -= p->y;
+        }
+
+        Rectangle axeRec = {
+            playerPos.x + std::cos(axeToCharTheta) * axeRadius,
+            playerPos.y + std::sin(axeToCharTheta) * axeRadius,
+            (float)axeSprite.width * axeScale,
+            (float)axeSprite.height * axeScale,
+        };
+
+        if (rectIntersection(enemyRec, axeRec)) {
+            isAlive = false;
         }
 
         // manage character history
@@ -184,6 +238,10 @@ int main() {
                     };
                     DrawTexturePro(tilesetTexture, playerSprite, destRec, origin, 0.f, c);
                 }
+
+                // draw enemy
+                if(isAlive)
+                    DrawTexturePro(tilesetTexture, enemySprite, enemyRec, {0, 0}, 0.f, WHITE);
 
                 // render axe
                 // position is corrected by deltaToCenter

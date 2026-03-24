@@ -35,11 +35,18 @@ inline const Sprite characterStart = {
     .height = 2 * gridSquareSize,
 };
 
-inline const Sprite weaponsStart = {
+inline const Sprite weaponStart = {
     .x = 8 * gridSquareSize,
     .y = 24 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize,
+};
+
+inline const Sprite monsterStart = {
+    .x = 13 * gridSquareSize,
+    .y = 29 * gridSquareSize,
+    .width = 1 * gridSquareSize,
+    .height = 2 * gridSquareSize,
 };
 
 };
