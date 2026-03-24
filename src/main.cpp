@@ -43,17 +43,19 @@ int main() {
     // character position (modeled by a circle)
     const int playerRadius = 64;
     Vector2 playerPos = { scr_w/2.f, scr_h/2.f};
-    const int maxPlayerPositionHistory = currentFPS / 5.f; // 0.2 second of history
+    const int maxPlayerPositionHistory = currentFPS / 8.f; // 0.125 second of history
     std::vector<Vector2> playerPositionHistory;
 
     // 17th character in tileset
     Sprite playerSprite = DungeonTileSet::characterStart; 
     playerSprite.x += 17 * DungeonTileSet::gridSquareSize;
+    const float playerScale = 4.f;
 
     // rotating axe around character
     Sprite axeSprite = DungeonTileSet::weaponsStart;
     axeSprite.x += 0 * DungeonTileSet::gridSquareSize;
-    const float axeRadius = 64;
+    const float axeRadius = 128;
+    const float axeScale = 4.f;
     float axeTheta = 0.f;
     float axeToCharTheta = 0.f;
 
@@ -82,8 +84,8 @@ int main() {
         playerPos.x += moveDelta.x;
         playerPos.y += moveDelta.y;
 
-        axeTheta += deltaTime * 3.f;
-        axeToCharTheta += deltaTime;
+        axeTheta += deltaTime * 8.f;
+        axeToCharTheta += deltaTime * 1.5f;
 
         // clamp player position to static tile position
         if((playerPos.x - playerRadius) < tileStartX) {
@@ -130,12 +132,16 @@ int main() {
 
                 // position is corrected by deltaToCenter
                 Rectangle destRec = {
-                    playerPositionHistory[i].x + deltaToCenter.x - playerRadius,
-                    playerPositionHistory[i].y + deltaToCenter.y - playerRadius,
-                    (float)playerSprite.width*4.f,
-                    (float)playerSprite.height*4.f,
+                    playerPositionHistory[i].x + deltaToCenter.x,
+                    playerPositionHistory[i].y + deltaToCenter.y,
+                    (float)playerSprite.width * playerScale,
+                    (float)playerSprite.height * playerScale,
                 };
-                DrawTexturePro(tilesetTexture, playerSprite, destRec, {0.f, 0.f}, 0.f, c);
+                Vector2 origin = {
+                    (playerSprite.width * playerScale) / 2.f,
+                    (playerSprite.height * playerScale) / 2.f,
+                };
+                DrawTexturePro(tilesetTexture, playerSprite, destRec, origin, 0.f, c);
             }
 
             // render axe
@@ -143,10 +149,23 @@ int main() {
             Rectangle destRec = {
                 playerPos.x + deltaToCenter.x + std::cos(axeToCharTheta) * axeRadius,
                 playerPos.y + deltaToCenter.y + std::sin(axeToCharTheta) * axeRadius,
-                (float)axeSprite.width*4.f,
-                (float)axeSprite.height*4.f,
+                (float)axeSprite.width * axeScale,
+                (float)axeSprite.height * axeScale,
             };
-            DrawTexturePro(tilesetTexture, axeSprite, destRec, {32.f, 64.f}, axeTheta * 180.f/3.14, WHITE);
+
+            Vector2 origin = {
+                (axeSprite.width * axeScale) / 2.f,
+                (axeSprite.height * axeScale) / 2.f + 4.f * axeScale,
+            };
+
+            DrawTexturePro(
+                tilesetTexture,
+                axeSprite,
+                destRec,
+                origin,
+                axeTheta * 180.f / 3.14f,
+                WHITE
+            );
         }
         EndDrawing();
     }
