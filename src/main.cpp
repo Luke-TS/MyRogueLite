@@ -107,14 +107,14 @@ int main() {
     tileSprite.x += (rand() % 20) * DungeonTileSet::gridSquareSize;
     tileSprite.y += (rand() % 2)  * DungeonTileSet::gridSquareSize;
 
+    Camera2D camera = { 0 };
+    camera.target = playerPos;
+    camera.offset = {scr_w/2.f, scr_h/2.f};
+    camera.rotation = 0.f;
+    camera.zoom = 1.f;
+
     SetTargetFPS(currentFPS);
 
-    /*
-     * Note: camera is attatched to center of player
-     *       by shifting all sprites accordinly.
-     *       playerPos is tracked as if it were 
-     *       moving in a fixed environment
-     */
     while (!WindowShouldClose()) { // close button or ESC key
 
         float deltaTime = GetFrameTime();
@@ -137,66 +137,65 @@ int main() {
         }
         playerPositionHistory.push_back(playerPos);
 
-        // difference in player position
-        // and the center of the screen
-        Vector2 deltaToCenter = {(scr_w / 2.f) - playerPos.x, (scr_h / 2.f) - playerPos.y};
-
-        // adjust tile position by this delta
-        tile.x = tileStartX + deltaToCenter.x;
-        tile.y = tileStartY + deltaToCenter.y;
+        // update camera target
+        camera.target = playerPos;
 
         BeginDrawing();
         {
             ClearBackground(BLACK);
 
-            // draw tile first
-            DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
+            BeginMode2D(camera);
+            {
+                // draw tile first
+                DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
 
-            // faded player history trail including
-            // the current, fully opaque player position
-            int count = playerPositionHistory.size();
-            for(int i = 0; i < count; i++) {
-                float t = (float)i / count;
+                // faded player history trail including
+                // the current, fully opaque player position
+                int count = playerPositionHistory.size();
+                for(int i = 0; i < count; i++) {
+                    float t = (float)i / count;
 
-                Color c = WHITE;
-                c.a = (unsigned char)(255 * t * t); // fade in
+                    Color c = WHITE;
+                    c.a = (unsigned char)(255 * t * t); // fade in
 
+                    // position is corrected by deltaToCenter
+                    Rectangle destRec = {
+                        playerPositionHistory[i].x,
+                        playerPositionHistory[i].y,
+                        (float)playerSprite.width * playerScale,
+                        (float)playerSprite.height * playerScale,
+                    };
+                    Vector2 origin = {
+                        (playerSprite.width * playerScale) / 2.f,
+                        (playerSprite.height * playerScale) / 2.f,
+                    };
+                    DrawTexturePro(tilesetTexture, playerSprite, destRec, origin, 0.f, c);
+                }
+
+                // render axe
                 // position is corrected by deltaToCenter
                 Rectangle destRec = {
-                    playerPositionHistory[i].x + deltaToCenter.x,
-                    playerPositionHistory[i].y + deltaToCenter.y,
-                    (float)playerSprite.width * playerScale,
-                    (float)playerSprite.height * playerScale,
+                    playerPos.x + std::cos(axeToCharTheta) * axeRadius,
+                    playerPos.y + std::sin(axeToCharTheta) * axeRadius,
+                    (float)axeSprite.width * axeScale,
+                    (float)axeSprite.height * axeScale,
                 };
+
                 Vector2 origin = {
-                    (playerSprite.width * playerScale) / 2.f,
-                    (playerSprite.height * playerScale) / 2.f,
+                    (axeSprite.width * axeScale) / 2.f,
+                    (axeSprite.height * axeScale) / 2.f + 4.f * axeScale,
                 };
-                DrawTexturePro(tilesetTexture, playerSprite, destRec, origin, 0.f, c);
+
+                DrawTexturePro(
+                    tilesetTexture,
+                    axeSprite,
+                    destRec,
+                    origin,
+                    axeTheta * 180.f / 3.14f,
+                    WHITE
+                );
             }
-
-            // render axe
-            // position is corrected by deltaToCenter
-            Rectangle destRec = {
-                playerPos.x + deltaToCenter.x + std::cos(axeToCharTheta) * axeRadius,
-                playerPos.y + deltaToCenter.y + std::sin(axeToCharTheta) * axeRadius,
-                (float)axeSprite.width * axeScale,
-                (float)axeSprite.height * axeScale,
-            };
-
-            Vector2 origin = {
-                (axeSprite.width * axeScale) / 2.f,
-                (axeSprite.height * axeScale) / 2.f + 4.f * axeScale,
-            };
-
-            DrawTexturePro(
-                tilesetTexture,
-                axeSprite,
-                destRec,
-                origin,
-                axeTheta * 180.f / 3.14f,
-                WHITE
-            );
+            EndMode2D();
         }
         EndDrawing();
     }
