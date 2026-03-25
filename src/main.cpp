@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <functional>
 #include <optional>
 #include <raylib.h>
 #include <string>
@@ -19,55 +20,86 @@
 #include "collision_logic.hpp"
 
 const float speed = 300.0f;
+const int currentFPS = 120;
+const int screenWidth = 1200;
+const int screenHeight = 800;
 
 // reads WASD input and returns
 // normalized direction vector
-Vector2 GetWASDMovement() {
-    Vector2 result = {0, 0};
-    if(IsKeyDown(KEY_D))
-        result.x += 1; // value of 1 is arbitrary
-    if(IsKeyDown(KEY_A))
-        result.x -= 1;
-    if(IsKeyDown(KEY_W))
-        result.y -= 1;
-    if(IsKeyDown(KEY_S))
-        result.y += 1;
+Vector2 GetWASDMovement();
 
-    return normalize(result);
-}
+struct Player {
+    const int   maxHistory;
+
+    std::vector<Vector2> positionHistory;
+};
+
+struct Enemy {
+    bool isAlive;
+};
+
+using Entity = int;
+
+const Entity playerID = 0;
+const Entity enemyID  = 1;
+const Entity weaponID = 2;
+const int entityCount = 3;
 
 int main() {
     srand(time(NULL));
 
     // screen setup
-    const int scr_w = 1200;
-    const int scr_h = 800;
-    InitWindow(scr_w, scr_h, "MyRogueLite");
-
-    const int currentFPS = 120;
+    InitWindow(screenWidth, screenHeight, "MyRogueLite");
 
     const Texture2D tilesetTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
 
-    // character position
-    auto playerPos = Vector2{ scr_w, scr_h} / 2.f;
-    const int maxPlayerPositionHistory = currentFPS / 8.f; // 0.125 second of history
-    std::vector<Vector2> playerPositionHistory;
-    // 17th character in tileset
-    Sprite playerSprite = DungeonTileSet::characterStart; 
-    playerSprite.x += 17 * DungeonTileSet::gridSquareSize;
-    const float playerScale = 4.f;
+    // render component
+    Rectangle sprites[entityCount];
+    float     scales[entityCount] = {1.f};
 
-    // enemy position
-    auto enemyPos = Vector2{ scr_w, scr_h} / 4.f;
-    Sprite enemySprite = DungeonTileSet::monsterStart; 
-    const float enemyScale = 4.f;
-    bool isAlive = true;
+    // transform component
+    Vector2   positions[entityCount];
+
+    // WASD movement component
+    bool isWASD[entityCount] = {false};
+
+    // AI movement component
+    bool isAI[entityCount] = {false};
+
+    // player
+    sprites[playerID]    = DungeonTileSet::characterStart;
+    sprites[playerID].x += 17 * DungeonTileSet::gridSquareSize; // 17th character
+    scales[playerID] = 4.f;
+    positions[playerID] = Vector2{screenWidth, screenHeight} / 2.f;
+    isWASD[playerID] = true;
+    
+    // sprites[enemy]
+    sprites[enemyID] = DungeonTileSet::monsterStart;
+    scales[enemyID] = 4.f;
+    positions[enemyID] = Vector2{screenWidth, screenHeight} / 4.f;
+    isAI[enemyID] = true;
+
+    // weapon sprite
+    sprites[weaponID] = DungeonTileSet::weaponStart;
+    scales[weaponID] = 4.f;
+    isWASD[weaponID] = true;
+
+    // weapon starts 128 pixels right of player
+    positions[weaponID] = positions[playerID];
+    positions[weaponID].x += 128;
+
+    // Player struct
+    struct Player player = {
+        .maxHistory = static_cast<int>(currentFPS / 8.f), // 0.125 second of history
+    };
+
+    // Enemy struct
+    struct Enemy enemy = {
+        .isAlive = true,
+    };
 
     // rotating axe around character
-    Sprite axeSprite = DungeonTileSet::weaponStart;
-    axeSprite.x += 0 * DungeonTileSet::gridSquareSize;
     const float axeRadius = 128;
-    const float axeScale = 4.f;
     float axeTheta = 0.f;
     float axeToCharTheta = 0.f;
 
@@ -84,42 +116,34 @@ int main() {
     tileSprite.y += (rand() % 2)  * DungeonTileSet::gridSquareSize;
 
     Camera2D camera = { 0 };
-    camera.target = playerPos;
-    camera.offset = Vector2{scr_w, scr_h} / 2.f;
+    camera.target = positions[playerID];
+    camera.offset = Vector2{screenWidth, screenHeight} / 2.f;
     camera.rotation = 0.f;
     camera.zoom = 1.f;
 
     SetTargetFPS(currentFPS);
-
     while (!WindowShouldClose()) { // close button or ESC key
 
         // time since last frame render
         float deltaTime = GetFrameTime();
 
-        // direction vector of WASD input
-        auto moveDir = GetWASDMovement();
+        // WASD movement system
+        Vector2 moveDir = GetWASDMovement();
+        for(Entity e = 0; e < entityCount; e++) {
+            if(isWASD[e]) {
+                auto deltaPos = moveDir * deltaTime * speed;
 
-        auto deltaPos = moveDir * deltaTime * speed;
-        if(IsKeyPressed(KEY_SPACE)) {
-            deltaPos *= currentFPS / 3.f;
+                positions[e] += deltaPos;
+            }
         }
 
-        playerPos += deltaPos;
+        // enemy AI movement system
+        for(Entity e = 0; e < entityCount; e++) {
+            if(isAI[e]) {
+                Vector2 enemyToPlayer = positions[playerID] - positions[e];
 
-        // enemy moves towards player
-        Vector2 enemyToPlayer = playerPos - enemyPos;
-        enemyPos += enemyToPlayer / 500.f;
-
-        // character changing
-        if(IsKeyPressed(KEY_RIGHT))
-            playerSprite.x += DungeonTileSet::gridSquareSize;
-        if(IsKeyPressed(KEY_LEFT))
-            playerSprite.x -= DungeonTileSet::gridSquareSize;
-
-        // revive enemy to starting position
-        if(IsKeyPressed(KEY_R)) {
-            enemyPos = Vector2{scr_w, scr_h} / 5.f;
-            isAlive = true;
+                positions[e] += enemyToPlayer / 500.f;
+            }
         }
 
         // axe movement
@@ -129,42 +153,42 @@ int main() {
         // entity bounding rectangles
         // used for intersection and rendering 
         Rectangle playerRec = {
-            .x = playerPos.x - (playerSprite.width*playerScale)/2.f,
-            .y = playerPos.y - (playerSprite.height*playerScale)/2.f,
-            .width = (float)playerSprite.width * playerScale,
-            .height = (float)playerSprite.height * playerScale,
+            .x = positions[playerID].x - (sprites[playerID].width * scales[playerID])/2.f,
+            .y = positions[playerID].y - (sprites[playerID].height * scales[playerID])/2.f,
+            .width = (float)sprites[playerID].width * scales[playerID],
+            .height = (float)sprites[playerID].height * scales[playerID],
         };
         Rectangle enemyRec = {
-            .x = enemyPos.x - (enemySprite.width*playerScale)/2.f,
-            .y = enemyPos.y - (enemySprite.height*playerScale)/2.f,
-            .width = (float)enemySprite.width * playerScale,
-            .height = (float)enemySprite.height * playerScale,
+            .x = positions[enemyID].x - (sprites[enemyID].width*scales[playerID])/2.f,
+            .y = positions[enemyID].y - (sprites[enemyID].height*scales[playerID])/2.f,
+            .width = (float)sprites[enemyID].width * scales[playerID],
+            .height = (float)sprites[enemyID].height * scales[playerID],
         };
         Rectangle axeRec = {
-            playerPos.x + std::cos(axeToCharTheta) * axeRadius,
-            playerPos.y + std::sin(axeToCharTheta) * axeRadius,
-            (float)axeSprite.width * axeScale,
-            (float)axeSprite.height * axeScale,
+            positions[playerID].x + std::cos(axeToCharTheta) * axeRadius,
+            positions[playerID].y + std::sin(axeToCharTheta) * axeRadius,
+            (float)sprites[weaponID].width * scales[weaponID],
+            (float)sprites[weaponID].height * scales[weaponID],
         };
 
         // snap player inside tile
         if (auto p = boundsPenetration( playerRec, {tileStartX, tileStartY, tileWidth, tileHeight})) {
-            playerPos -= *p;
+            positions[playerID] -= *p;
         }
 
         // check axe collision with enemy
         if (rectIntersection(enemyRec, axeRec)) {
-            isAlive = false;
+            enemy.isAlive = false;
         }
 
         // manage character history
-        if (playerPositionHistory.size() > maxPlayerPositionHistory) {
-            playerPositionHistory.erase(playerPositionHistory.begin());
+        if (player.positionHistory.size() > player.maxHistory) {
+            player.positionHistory.erase(player.positionHistory.begin());
         }
-        playerPositionHistory.push_back(playerPos);
+        player.positionHistory.push_back(positions[playerID]);
 
         // update camera target
-        camera.target = playerPos;
+        camera.target = positions[playerID];
 
         BeginDrawing();
         {
@@ -176,8 +200,8 @@ int main() {
                 DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
 
                 // faded player history trail including
-                // the current, fully opaque player position
-                int count = playerPositionHistory.size();
+                // the current, fully opaque positions[playerID]
+                int count = player.positionHistory.size();
                 for(int i = 0; i < count; i++) {
                     float t = (float)i / count;
 
@@ -185,30 +209,30 @@ int main() {
                     c.a = (unsigned char)(255 * t * t); // fade in
 
                     Rectangle destRec = {
-                        playerPositionHistory[i].x,
-                        playerPositionHistory[i].y,
-                        (float)playerSprite.width * playerScale,
-                        (float)playerSprite.height * playerScale,
+                        player.positionHistory[i].x,
+                        player.positionHistory[i].y,
+                        (float)sprites[playerID].width * scales[playerID],
+                        (float)sprites[playerID].height * scales[playerID],
                     };
                     Vector2 origin = {
-                        (playerSprite.width * playerScale) / 2.f,
-                        (playerSprite.height * playerScale) / 2.f,
+                        (sprites[playerID].width * scales[playerID]) / 2.f,
+                        (sprites[playerID].height * scales[playerID]) / 2.f,
                     };
-                    DrawTexturePro(tilesetTexture, playerSprite, destRec, origin, 0.f, c);
+                    DrawTexturePro(tilesetTexture, sprites[playerID], destRec, origin, 0.f, c);
                 }
 
                 // draw enemy
-                if(isAlive) {
-                    DrawTexturePro(tilesetTexture, enemySprite, enemyRec, {0, 0}, 0.f, WHITE);
+                if(enemy.isAlive) {
+                    DrawTexturePro(tilesetTexture, sprites[enemyID], enemyRec, {0, 0}, 0.f, WHITE);
                 }
 
                 Vector2 axeOrigin = {
-                    (axeSprite.width * axeScale) / 2.f,
-                    (axeSprite.height * axeScale) / 2.f + 4.f * axeScale,
+                    (sprites[weaponID].width * scales[weaponID]) / 2.f,
+                    (sprites[weaponID].height * scales[weaponID]) / 2.f + 4.f * scales[weaponID],
                 };
                 DrawTexturePro(
                     tilesetTexture,
-                    axeSprite,
+                    sprites[weaponID],
                     axeRec,
                     axeOrigin,
                     axeTheta * 180.f / 3.14f,
@@ -222,4 +246,18 @@ int main() {
 
     CloseWindow();
     return 0;
+}
+
+Vector2 GetWASDMovement() {
+    Vector2 result = {0, 0};
+    if(IsKeyDown(KEY_D))
+        result.x += 1; // value of 1 is arbitrary
+    if(IsKeyDown(KEY_A))
+        result.x -= 1;
+    if(IsKeyDown(KEY_W))
+        result.y -= 1;
+    if(IsKeyDown(KEY_S))
+        result.y += 1;
+
+    return normalize(result);
 }

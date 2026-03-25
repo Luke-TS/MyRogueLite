@@ -6,7 +6,7 @@
 // Sprite as an alias of Rectangle containing:
 // (x, y) as coordinates in texture
 // (width, height) as dimensions of the texture
-typedef Rectangle Sprite;
+using Sprite = Rectangle;
 
 // defines sprite structs for each asset 
 // in dungeon_tileset.png
