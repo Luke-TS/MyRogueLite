@@ -4,8 +4,18 @@
 #include <optional>  // for std::optional
 #include <algorithm> // for std::min
 
+inline Rectangle rectFromCenter(const Vector2& center, float width, float height) {
+    return Rectangle{
+        center.x - width / 2.f,
+        center.y - height / 2.f,
+        width,
+        height
+    };
+}
+
 // Returns nullopt if the circle is fully enclosed by rec.
 // Otherwise returns penetration depth on each axis.
+// Note: rec is top-left rectangle
 inline std::optional<Vector2> boundsPenetration(const Vector2& origin, const int radius, const Rectangle& rec) {
     float px = 0.0f, py = 0.0f;
 
@@ -26,16 +36,31 @@ inline std::optional<Vector2> boundsPenetration(const Vector2& origin, const int
 inline std::optional<Vector2> boundsPenetration(const Rectangle& rec1, const Rectangle& rec2) {
     float px = 0.0f, py = 0.0f;
 
-    if      (rec1.x < rec2.x)                        px = rec1.x - rec2.x;
-    else if (rec1.x + rec1.width > rec2.x + rec2.width)  px = (rec1.x + rec1.width) - (rec2.x + rec2.width);
+    if(rec1.x < rec2.x)
+        px = rec1.x - rec2.x;
+    else if (rec1.x + rec1.width > rec2.x + rec2.width)
+        px = (rec1.x + rec1.width) - (rec2.x + rec2.width);
 
-    if      (rec1.y < rec2.y)                        py = rec1.y - rec2.y;
-    else if (rec1.y + rec1.height > rec2.y + rec2.height) py = (rec1.y + rec1.height) - (rec2.y + rec2.height);
+    if (rec1.y < rec2.y)
+        py = rec1.y - rec2.y;
+    else if (rec1.y + rec1.height > rec2.y + rec2.height)
+        py = (rec1.y + rec1.height) - (rec2.y + rec2.height);
 
     if (px == 0.0f && py == 0.0f)
         return std::nullopt;
 
     return Vector2{ px, py };
+}
+
+// same but centered rectangles
+inline std::optional<Vector2> boundsPenetrationCentered(
+    const Vector2& center1, float w1, float h1,
+    const Vector2& center2, float w2, float h2)
+{
+    Rectangle rec1 = rectFromCenter(center1, w1, h1);
+    Rectangle rec2 = rectFromCenter(center2, w2, h2);
+
+    return boundsPenetration(rec1, rec2);
 }
 
 // Returns nullopt if rec1 and rec2 do not intersect.
@@ -52,4 +77,15 @@ inline std::optional<Vector2> rectIntersection(const Rectangle& rec1, const Rect
     const float py = (rec1.y + rec1.height * 0.5f) < (rec2.y + rec2.height * 0.5f) ? -overlapY : overlapY;
 
     return Vector2{ px, py };
+}
+
+// same but with centered rectangles
+inline std::optional<Vector2> rectIntersectionCentered(
+    const Vector2& center1, float w1, float h1,
+    const Vector2& center2, float w2, float h2)
+{
+    Rectangle rec1 = rectFromCenter(center1, w1, h1);
+    Rectangle rec2 = rectFromCenter(center2, w2, h2);
+
+    return rectIntersection(rec1, rec2);
 }
