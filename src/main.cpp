@@ -1,6 +1,5 @@
 #include <cstdlib>
 #include <ctime>
-#include <optional>
 #include <raylib.h>
 #include <string>
 #include <vector>
@@ -26,12 +25,25 @@ using Entity = int;
 const Entity playerID = 0;
 const Entity enemyID  = 1;
 const Entity weaponID = 2;
-const int entityCount = 3;
+const Entity weapon2ID = 3;
+const Entity weapon3ID = 4;
+const int entityCount = 5;
 
 // reads WASD input and returns
 // normalized direction vector
 Vector2 GetWASDMovement();
+
 Vector2 getSize(Entity e, Rectangle* sprites, float* scales);
+
+struct TileMap {
+    int width, height;
+    float tileSize;
+
+    std::vector<Sprite> tiles; // indices into tileset
+};
+Sprite getTile(const TileMap& map, int x, int y) {
+    return map.tiles[y * map.width + x];
+};
 
 typedef struct {
     Entity target;
@@ -46,7 +58,7 @@ int main() {
     // screen setup
     InitWindow(screenWidth, screenHeight, "MyRogueLite");
 
-    const Texture2D tilesetTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
+    const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
 
     // tile position
     const int tileStartX = 200;
@@ -59,10 +71,16 @@ int main() {
         tileStartY + tileHeight / 2.f
     };
 
+    TileMap map = {
+        .width  = 4,
+        .height = 4,
+        .tileSize = 600.f,
+    };
+    for(int i = 0; i < map.width*map.height; i++)
+        map.tiles.push_back(DungeonTileSet::randomFloorTile());
+
     // random tile sprite
-    Sprite tileSprite = DungeonTileSet::floorTileStart;
-    tileSprite.x += (rand() % 20) * DungeonTileSet::gridSquareSize;
-    tileSprite.y += (rand() % 2)  * DungeonTileSet::gridSquareSize;
+    Sprite tileSprite = DungeonTileSet::randomFloorTile();
 
     // render component
     Rectangle sprites[entityCount];
@@ -77,46 +95,69 @@ int main() {
     sprites[weaponID].y += 10;
     sprites[weaponID].height -= 10;
     scales[weaponID] = 4.f;
+    sprites[weapon2ID] = DungeonTileSet::weaponStart;
+    sprites[weapon2ID].y += 10;
+    sprites[weapon2ID].height -= 10;
+    scales[weapon2ID] = 4.f;
+    sprites[weapon3ID] = DungeonTileSet::weaponStart;
+    sprites[weapon3ID].y += 10;
+    sprites[weapon3ID].height -= 10;
+    scales[weapon3ID] = 4.f;
 
     // transform component
     Vector2   positions[entityCount];
 
     positions[playerID] = tileCenter;
-    positions[enemyID] =  tileCenter / 3.f;
+    positions[enemyID] =  tileCenter / 2.f;
 
     float     rotations[entityCount] = {0.f};  // in degrees
     float     spinSpeeds[entityCount] = {0.f}; // degrees/second
-    spinSpeeds[weaponID] = currentFPS * 3.f; // one spin per second
+    spinSpeeds[weaponID] = currentFPS * 5.f; // 5 spin per second
+    spinSpeeds[weapon2ID] = currentFPS * 5.f;
+    spinSpeeds[weapon3ID] = currentFPS * 5.f;
 
-    // WASD movement component
-    bool isWASD[entityCount] = {false};
-    isWASD[playerID] = true;
+    bool isPlayer[entityCount] = {false};
+    isPlayer[playerID] = true;
 
-    // AI movement component
-    bool isAI[entityCount] = {false};
-    isAI[enemyID] = true;
+    bool isEnemy[entityCount] = {false};
+    isEnemy[enemyID] = true;
 
-    // health component
-    bool isLiving[entityCount] = {false};
+    // health component (players and enemies)
     float health[entityCount] = {0.f};
 
-    isLiving[playerID] = true;
     health[playerID] = 100.f;
-    isLiving[enemyID] = true;
     health[enemyID] = 100.f;
 
     // orbit component
     std::vector<Orbit> orbits;
     std::vector<Entity> orbitEntities;
 
+    bool isWeapon[entityCount] = {false};
+    isWeapon[weaponID] = true;
+    isWeapon[weapon2ID] = true;
+    isWeapon[weapon3ID] = true;
+
     orbits.push_back({
         .target = playerID,
         .radius = 128.f,
         .angle  = 0.f,
-        .speed  = 1.5f
+        .speed  = 2.5f,
     });
     orbitEntities.push_back(weaponID);
-
+    orbits.push_back({
+        .target = playerID,
+        .radius = 128.f,
+        .angle  = (2.f/3.f) * 3.14f,
+        .speed  = 2.5f,
+    });
+    orbitEntities.push_back(weapon2ID);
+    orbits.push_back({
+        .target = playerID,
+        .radius = 128.f,
+        .angle  = (4.f/3.f) * 3.14f,
+        .speed  = 2.5f,
+    });
+    orbitEntities.push_back(weapon3ID);
 
     Camera2D camera = { 0 };
     camera.target = positions[playerID];
@@ -124,16 +165,33 @@ int main() {
     camera.rotation = 0.f;
     camera.zoom = 1.f;
 
+    bool debugMode = false;
+
     SetTargetFPS(currentFPS);
     while (!WindowShouldClose()) { // close button or ESC key
 
         // time since last frame render
         float deltaTime = GetFrameTime();
 
+        if(IsKeyPressed(KEY_B)) {
+            debugMode = 1 - debugMode;
+        }
+
+        if(IsKeyPressed(KEY_R)) {
+            health[enemyID] = 100.f;
+        }
+
+        // Camera zoom controls
+        // Uses log scaling to provide consistent zoom speed
+        camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
+
+        if (camera.zoom > 3.0f) camera.zoom = 3.0f;
+        else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
+
         // WASD movement system
         Vector2 moveDir = GetWASDMovement();
         for(Entity e = 0; e < entityCount; e++) {
-            if(isWASD[e]) {
+            if(isPlayer[e]) {
                 auto deltaPos = moveDir * deltaTime * speed;
 
                 positions[e] += deltaPos;
@@ -142,7 +200,7 @@ int main() {
 
         // enemy AI movement system
         for(Entity e = 0; e < entityCount; e++) {
-            if(isAI[e]) {
+            if(isEnemy[e]) {
                 Vector2 enemyToPlayer = positions[playerID] - positions[e];
 
                 positions[e] += enemyToPlayer / 500.f;
@@ -162,7 +220,7 @@ int main() {
             // update angle
             o.angle += deltaTime * o.speed;
 
-            // get target position (player)
+            // get target position
             Vector2 center = positions[o.target];
 
             // compute offset
@@ -171,7 +229,7 @@ int main() {
                 std::sin(o.angle) * o.radius
             };
 
-            // set weapon position
+            // set entity position
             positions[e] = center + offset;
         }
 
@@ -179,24 +237,47 @@ int main() {
         Vector2 half = getSize(playerID, sprites, scales) / 2.f;
         positions[playerID].x = std::clamp(
             positions[playerID].x,
-            tileStartX + half.x,
-            tileStartX + tileWidth - half.x
+            0 + half.x,
+            0 + map.width*map.tileSize - half.x
         );
         positions[playerID].y = std::clamp(
             positions[playerID].y,
-            tileStartY + half.y,
-            tileStartY + tileHeight - half.y
+            0 + half.y,
+            0 + map.height*map.tileSize - half.y
         );
 
-        auto sizeEnemy = getSize(enemyID, sprites, scales);
-        auto sizeWeapon = getSize(weaponID, sprites, scales);
+        /* TODO
+        // convert world → tile coordinates
+        int tx = positions[playerID].x / map.tileSize;
+        int ty = positions[playerID].y / map.tileSize;
 
-        // check axe collision with enemy
-        if (rectIntersectionCentered(
-                positions[enemyID], sizeEnemy.x, sizeEnemy.y, 
-                positions[weaponID], sizeWeapon.x, sizeWeapon.y))
-        {
-            health[enemyID] = 0.f;
+        // check surrounding tiles
+        for (each nearby tile) {
+            if (tile is solid) {
+                resolve collision
+            }
+        }
+        */
+
+        // check weapon collisions with enemies
+             for(Entity e_i = 0; e_i < entityCount; e_i++) {
+            if(isWeapon[e_i]) {
+                for(Entity e_j = 0; e_j < entityCount; e_j++) {
+                    if(e_i == e_j) continue;
+
+                    if(isEnemy[e_j]) {
+                        auto sizeWeapon = getSize(e_i, sprites, scales);
+                        auto sizeEnemy = getSize(e_j, sprites, scales);
+
+                        if (rectIntersectionCentered(
+                            positions[e_j], sizeEnemy.x, sizeEnemy.y, 
+                            positions[e_i], sizeWeapon.x, sizeWeapon.y))
+                        {
+                            health[e_j] = 0.f;
+                        }
+                    }
+                }
+            }
         }
 
         // update camera target
@@ -209,11 +290,25 @@ int main() {
             BeginMode2D(camera);
             {
                 // draw tile first
-                DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
+                //DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
+                for (int y = 0; y < map.height; y++) {
+                    for (int x = 0; x < map.width; x++) {
+                        Rectangle src = getTile(map, x, y);
+
+                        Rectangle dest = {
+                            x * map.tileSize,
+                            y * map.tileSize,
+                            map.tileSize,
+                            map.tileSize
+                        };
+
+                        DrawTexturePro(dungeonTextureSet, src, dest, {0,0}, 0, WHITE);
+                    }
+                }
 
                 // render system
                 for (Entity e = 0; e < entityCount; e++) {
-                    if (isLiving[e] && (health[e] == 0)) continue;
+                    if ((isPlayer[e] || isEnemy[e]) && (health[e] == 0)) continue;
 
                     Vector2 destSize = getSize(e, sprites, scales);
                     Rectangle destRec = {
@@ -227,13 +322,27 @@ int main() {
                         destRec.height / 2.f,
                     };
                     DrawTexturePro(
-                        tilesetTexture,
+                        dungeonTextureSet,
                         sprites[e],
                         destRec,
                         origin,
                         rotations[e],
                         WHITE
                     );
+
+                    // DEBUG: draw bounding box
+                    
+                    if(!debugMode) continue;
+
+                    Rectangle debugRect = {
+                        positions[e].x - destSize.x / 2.f,
+                        positions[e].y - destSize.y / 2.f,
+                        destSize.x,
+                        destSize.y
+                    };
+
+                    DrawRectangleLinesEx(debugRect, 2.0f, GREEN);
+                    DrawCircleV(positions[e], 3.0f, RED);
                 }
             }
             EndMode2D();

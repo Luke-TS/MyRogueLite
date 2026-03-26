@@ -49,4 +49,24 @@ inline const Sprite monsterStart = {
     .height = 2 * gridSquareSize,
 };
 
+inline Sprite getFloorTile(int idx) {
+    // get floor row/col
+    const int row = idx / 30;
+    const int col = idx % 30;
+
+    // calculate random sprite (x, y)
+    Sprite sprite = floorTileStart; 
+    sprite.x += col * gridSquareSize;
+    sprite.y += row * gridSquareSize;
+    return sprite;
+}
+
+inline Sprite randomFloorTile() {
+    // select floor number
+    const int numFloors = 70;
+    const int randFloorNum = rand() % numFloors;
+
+    return getFloorTile(randFloorNum);
+};
+
 };
