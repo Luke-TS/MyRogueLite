@@ -179,6 +179,18 @@ int main() {
 
         if(IsKeyPressed(KEY_R)) {
             health[enemyID] = 100.f;
+            rotations[enemyID] = 0.f;
+        }
+
+        if(IsKeyPressed(KEY_LEFT))
+            sprites[playerID].x -= DungeonTileSet::gridSquareSize;
+        if(IsKeyPressed(KEY_RIGHT))
+            sprites[playerID].y += DungeonTileSet::gridSquareSize;
+
+        if(IsKeyPressed(KEY_T)) {
+            map.tiles.clear();
+            for(int i = 0; i < map.width*map.height; i++)
+                map.tiles.push_back(DungeonTileSet::randomFloorTile());
         }
 
         // Camera zoom controls
@@ -201,6 +213,8 @@ int main() {
         // enemy AI movement system
         for(Entity e = 0; e < entityCount; e++) {
             if(isEnemy[e]) {
+                if(health[e] == 0) continue;
+
                 Vector2 enemyToPlayer = positions[playerID] - positions[e];
 
                 positions[e] += enemyToPlayer / 500.f;
@@ -260,7 +274,7 @@ int main() {
         */
 
         // check weapon collisions with enemies
-             for(Entity e_i = 0; e_i < entityCount; e_i++) {
+        for(Entity e_i = 0; e_i < entityCount; e_i++) {
             if(isWeapon[e_i]) {
                 for(Entity e_j = 0; e_j < entityCount; e_j++) {
                     if(e_i == e_j) continue;
@@ -274,6 +288,7 @@ int main() {
                             positions[e_i], sizeWeapon.x, sizeWeapon.y))
                         {
                             health[e_j] = 0.f;
+                            rotations[e_j] = 90.f;
                         }
                     }
                 }
@@ -308,7 +323,7 @@ int main() {
 
                 // render system
                 for (Entity e = 0; e < entityCount; e++) {
-                    if ((isPlayer[e] || isEnemy[e]) && (health[e] == 0)) continue;
+                    //if ((isPlayer[e] || isEnemy[e]) && (health[e] == 0)) continue;
 
                     Vector2 destSize = getSize(e, sprites, scales);
                     Rectangle destRec = {
