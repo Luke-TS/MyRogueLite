@@ -1,6 +1,11 @@
+#include <cassert>
+#include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+#include <optional>
 #include <raylib.h>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -39,11 +44,19 @@ struct TileMap {
     int width, height;
     float tileSize;
 
-    std::vector<Sprite> tiles; // indices into tileset
+    std::vector<int> tiles; // indices into tileset
 };
-Sprite getTile(const TileMap& map, int x, int y) {
+int getTile(const TileMap& map, int x, int y) {
     return map.tiles[y * map.width + x];
 };
+std::vector<int> getNeighbors(const TileMap& map, int x, int y) {
+    std::vector<int> tiles(4);
+    tiles[0] = getTile(map, x, y-1); // top
+    tiles[1] = getTile(map, x+1, y); // right
+    tiles[2] = getTile(map, x, y+1); // bottom
+    tiles[3] = getTile(map, x-1, y); // right
+    return tiles;
+}
 
 typedef struct {
     Entity target;
@@ -60,27 +73,35 @@ int main() {
 
     const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
 
+    /*
     // tile position
     const int tileStartX = 200;
     const int tileStartY = 100;
     const int tileWidth  = 800;
     const int tileHeight = 600;
     Rectangle tile = {tileStartX, tileStartY, tileWidth, tileHeight};
+    */
+
+    TileMap map;
+    map.tileSize = 600.f;
+
+    std::ifstream file("../src/map.txt");
+    file >> map.width >> map.height;
+    for(int i = 0; i < map.height; i++) {
+        for(int j = 0; j < map.width; j++) {
+            bool isTile;
+            file >> isTile;
+            if(isTile)
+                map.tiles.push_back(DungeonTileSet::randomFloorTileIdx());
+            else
+                map.tiles.push_back(-1);
+        }
+    }
+
     Vector2 tileCenter = {
-        tileStartX + tileWidth  / 2.f,
-        tileStartY + tileHeight / 2.f
+        map.width * map.tileSize / 2.f,
+        map.height * map.tileSize / 2.f
     };
-
-    TileMap map = {
-        .width  = 4,
-        .height = 4,
-        .tileSize = 600.f,
-    };
-    for(int i = 0; i < map.width*map.height; i++)
-        map.tiles.push_back(DungeonTileSet::randomFloorTile());
-
-    // random tile sprite
-    Sprite tileSprite = DungeonTileSet::randomFloorTile();
 
     // render component
     Rectangle sprites[entityCount];
@@ -190,7 +211,7 @@ int main() {
         if(IsKeyPressed(KEY_T)) {
             map.tiles.clear();
             for(int i = 0; i < map.width*map.height; i++)
-                map.tiles.push_back(DungeonTileSet::randomFloorTile());
+                map.tiles.push_back(DungeonTileSet::randomFloorTileIdx());
         }
 
         // Camera zoom controls
@@ -204,9 +225,41 @@ int main() {
         Vector2 moveDir = GetWASDMovement();
         for(Entity e = 0; e < entityCount; e++) {
             if(isPlayer[e]) {
-                auto deltaPos = moveDir * deltaTime * speed;
+                auto eSize = getSize(e, sprites, scales);
+                auto half = eSize / 2.f;
 
-                positions[e] += deltaPos;
+                auto deltaPos = moveDir * deltaTime * speed;
+                auto newPos = positions[e] + deltaPos;
+
+                auto neighbors = getNeighbors(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize)); 
+                auto currTile = getTile(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize));
+                assert(currTile != -1); // current tile should be valid
+
+                Rectangle tileDest = {
+                    .x = int(newPos.x / map.tileSize) * map.tileSize,
+                    .y = int(newPos.y / map.tileSize) * map.tileSize,
+                    .width = map.tileSize,
+                    .height = map.tileSize,
+                };
+
+                if(neighbors[0] == -1) { // top neighbor
+                    if(newPos.y - half.y < tileDest.y)
+                        newPos.y = tileDest.y + half.y;
+                }
+                if(neighbors[1] == -1) { // right neighbor
+                    if(newPos.x + half.x > tileDest.x + tileDest.width)
+                        newPos.x = tileDest.x + tileDest.width - half.x;
+                }
+                if(neighbors[2] == -1) { // bottom neighbor
+                    if(newPos.y + half.y > tileDest.y + tileDest.height)
+                        newPos.y = tileDest.y + tileDest.height - half.y;
+                }
+                if(neighbors[3] == -1) { // left neighbor
+                    if(newPos.x - half.x < tileDest.x)
+                        newPos.x = tileDest.x + half.x;
+                }
+
+                positions[e] = newPos;
             }
         }
 
@@ -248,6 +301,7 @@ int main() {
         }
 
         // clamp player to tile
+        /*
         Vector2 half = getSize(playerID, sprites, scales) / 2.f;
         positions[playerID].x = std::clamp(
             positions[playerID].x,
@@ -259,6 +313,7 @@ int main() {
             0 + half.y,
             0 + map.height*map.tileSize - half.y
         );
+        */
 
         /* TODO
         // convert world → tile coordinates
@@ -308,7 +363,9 @@ int main() {
                 //DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
                 for (int y = 0; y < map.height; y++) {
                     for (int x = 0; x < map.width; x++) {
-                        Rectangle src = getTile(map, x, y);
+                        auto src = getTile(map, x, y);
+
+                        if(src == -1) continue; // empty map tile
 
                         Rectangle dest = {
                             x * map.tileSize,
@@ -317,7 +374,7 @@ int main() {
                             map.tileSize
                         };
 
-                        DrawTexturePro(dungeonTextureSet, src, dest, {0,0}, 0, WHITE);
+                        DrawTexturePro(dungeonTextureSet, DungeonTileSet::getFloorTile(src), dest, {0,0}, 0, WHITE);
                     }
                 }
 

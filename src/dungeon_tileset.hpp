@@ -61,12 +61,12 @@ inline Sprite getFloorTile(int idx) {
     return sprite;
 }
 
-inline Sprite randomFloorTile() {
+inline int randomFloorTileIdx() {
     // select floor number
     const int numFloors = 70;
     const int randFloorNum = rand() % numFloors;
 
-    return getFloorTile(randFloorNum);
+    return randFloorNum;
 };
 
 };
