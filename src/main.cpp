@@ -71,14 +71,21 @@ typedef struct _cc {
     Vector2 halfSize;
 } ColliderComp;
 
+struct Sprite {
+    Rectangle src;
+    float scale;
+};
+
 typedef struct _hc {
     float value;
 } HealthComp;
 
 typedef struct _tc {
-    bool hasPlayer = false;
-    bool hasEnemy  = false;
-    bool hasWeapon = false;
+    bool hasPlayer      = false;
+    bool hasEnemy       = false;
+    bool hasWeapon      = false;
+    bool hasContainment = true; // contained by map boundaries
+                                // true by default
 } TagComp;
 
 typedef struct _o {
@@ -95,15 +102,6 @@ int main() {
     InitWindow(screenWidth, screenHeight, "MyRogueLite");
 
     const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
-
-    /*
-    // tile position
-    const int tileStartX = 200;
-    const int tileStartY = 100;
-    const int tileWidth  = 800;
-    const int tileHeight = 600;
-    Rectangle tile = {tileStartX, tileStartY, tileWidth, tileHeight};
-    */
 
     TileMap map;
     map.tileSize = 600.f;
@@ -125,6 +123,8 @@ int main() {
         map.width * map.tileSize / 2.f,
         map.height * map.tileSize / 2.f
     };
+
+    // transform component
 
     std::vector<TransformComp> transforms(entityCount);
 
@@ -149,54 +149,71 @@ int main() {
         .rotationSpeedD = currentFPS * 5.f,
     };
 
-    // render component
-    Rectangle sprites[entityCount];
-    float     scales[entityCount] = {1.f};
+    // sprite component
+    std::vector<Sprite> sprites(entityCount);
 
-    sprites[playerID]    = DungeonTileSet::characterStart;
-    sprites[playerID].x += 17 * DungeonTileSet::gridSquareSize; // 17th character
-    scales[playerID] = 4.f;
-    sprites[enemyID] = DungeonTileSet::monsterStart;
-    scales[enemyID] = 4.f;
-    sprites[weaponID] = DungeonTileSet::weaponStart;
-    sprites[weaponID].y += 10;
-    sprites[weaponID].height -= 10;
-    scales[weaponID] = 4.f;
-    sprites[weapon2ID] = DungeonTileSet::weaponStart;
-    sprites[weapon2ID].y += 10;
-    sprites[weapon2ID].height -= 10;
-    scales[weapon2ID] = 4.f;
-    sprites[weapon3ID] = DungeonTileSet::weaponStart;
-    sprites[weapon3ID].y += 10;
-    sprites[weapon3ID].height -= 10;
-    scales[weapon3ID] = 4.f;
+    sprites[playerID].src    = DungeonTileSet::characterStart;
+    sprites[playerID].src.x += 17 * DungeonTileSet::gridSquareSize; // 17th character
+    sprites[playerID].scale = 4.f;
+
+    sprites[enemyID].src = DungeonTileSet::monsterStart;
+    sprites[enemyID].scale= 4.f;
+
+    sprites[weaponID].src = DungeonTileSet::weaponStart;
+    sprites[weaponID].src.y += 10;
+    sprites[weaponID].src.height -= 10;
+    sprites[weaponID].scale = 4.f;
+    sprites[weapon2ID].src = DungeonTileSet::weaponStart;
+    sprites[weapon2ID].src.y += 10;
+    sprites[weapon2ID].src.height -= 10;
+    sprites[weapon2ID].scale = 4.f;
+    sprites[weapon3ID].src = DungeonTileSet::weaponStart;
+    sprites[weapon3ID].src.y += 10;
+    sprites[weapon3ID].src.height -= 10;
+    sprites[weapon3ID].scale = 4.f;
+
+    // collider component; equal to sprite size*scale by default
+    std::vector<ColliderComp> colliders(entityCount);
+    for(Entity e = 0; e < entityCount; e++) {
+        colliders[e].halfSize = {
+            sprites[e].src.width * sprites[e].scale / 2.f,
+            sprites[e].src.height * sprites[e].scale / 2.f,
+        };
+    }
+
+    // direction component
 
     std::vector<int> direction(entityCount, 1);
 
-    std::vector<bool> isContained(entityCount, false);
-    isContained[playerID] = true;
-    isContained[enemyID] = true;
+    // health component
 
-    bool isPlayer[entityCount] = {false};
-    isPlayer[playerID] = true;
+    std::vector<HealthComp> healths(entityCount);
+    healths[playerID].value = 100.f;
+    healths[enemyID].value = 100.f;
 
-    bool isEnemy[entityCount] = {false};
-    isEnemy[enemyID] = true;
+    // tags component
 
-    // health component (players and enemies)
-    float health[entityCount] = {0.f};
-
-    health[playerID] = 100.f;
-    health[enemyID] = 100.f;
+    std::vector<TagComp> tags(entityCount);
+    tags[playerID] = {
+        .hasPlayer = true,
+    };
+    tags[enemyID] = {
+        .hasEnemy = true,
+    };
+    tags[weaponID] = {
+        .hasWeapon = true,
+    };
+    tags[weapon2ID] = {
+        .hasWeapon = true,
+    };
+    tags[weapon3ID] = {
+        .hasWeapon = true,
+    };
 
     // orbit component
+
     std::vector<Orbit> orbits;
     std::vector<Entity> orbitEntities;
-
-    bool isWeapon[entityCount] = {false};
-    isWeapon[weaponID] = true;
-    isWeapon[weapon2ID] = true;
-    isWeapon[weapon3ID] = true;
 
     orbits.push_back({
         .target = playerID,
@@ -220,18 +237,39 @@ int main() {
     });
     orbitEntities.push_back(weapon3ID);
 
-    Camera2D camera = { 0 };
-    camera.target = tileCenter;
-    camera.offset = Vector2{screenWidth, screenHeight} / 2.f;
+    // camera setup
+
+    Camera2D camera;
+    camera.offset = Vector2{screenWidth, screenHeight} / 2.f; // defines {0, 0} as mid-screen
     camera.rotation = 0.f;
     camera.zoom = 1.f;
 
+    // game state
+
     bool debugMode = false;
+
+    // derived data - cleared each frame
+
+    struct Collision {
+        Entity a;
+        Entity b;
+        Vector2 penetration; // a into b
+    };
+    std::vector<Collision> collisions;
+
+    // populated from tag components each frame
+    // inefficient, but good enough for now
+    std::vector<Entity> playerEntities;
+    std::vector<Entity> weaponEntities;
+    std::vector<Entity> enemyEntities;
+
+    // main loop
 
     SetTargetFPS(currentFPS);
     while (!WindowShouldClose()) { // close button or ESC key
 
-        // time since last frame render
+        // game logic (inputs etc)
+
         float deltaTime = GetFrameTime();
 
         if(IsKeyPressed(KEY_B)) {
@@ -239,14 +277,14 @@ int main() {
         }
 
         if(IsKeyPressed(KEY_R)) {
-            health[enemyID] = 100.f;
+            healths[enemyID].value = 100.f;
             transforms[enemyID].rotationThetaD = 0.f;
         }
 
         if(IsKeyPressed(KEY_LEFT))
-            sprites[playerID].x -= DungeonTileSet::gridSquareSize;
+            sprites[playerID].src.x -= DungeonTileSet::gridSquareSize;
         if(IsKeyPressed(KEY_RIGHT))
-            sprites[playerID].y += DungeonTileSet::gridSquareSize;
+            sprites[playerID].src.y += DungeonTileSet::gridSquareSize;
 
         if(IsKeyPressed(KEY_T)) {
             map.tiles.clear();
@@ -265,68 +303,79 @@ int main() {
         if (camera.zoom > 4.0f) camera.zoom = 4.0f;
         else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
 
+        // segregate entities
+        playerEntities.clear();
+        weaponEntities.clear();
+        enemyEntities.clear();
+        for(Entity e = 0; e < entityCount; e++) {
+            const auto& eTags = tags[e];
+            if(eTags.hasPlayer)
+                playerEntities.push_back(e);
+            if(eTags.hasEnemy)
+                enemyEntities.push_back(e);
+            if(eTags.hasWeapon)
+                weaponEntities.push_back(e);
+        }
+
+        // movement systems
+
         // WASD movement system
         Vector2 moveDir = GetWASDMovement();
-        for(Entity e = 0; e < entityCount; e++) {
-            if(isPlayer[e]) {
-                if( moveDir.x < -0.1f)
-                    direction[e] = -1;
-                if( moveDir.x > +0.1f)
-                    direction[e] = 1;
+        for(const auto& p : playerEntities) {
+            if( moveDir.x < -0.1f)
+                direction[p] = -1;
+            if( moveDir.x > +0.1f)
+                direction[p] = 1;
 
-                auto deltaPos = moveDir * deltaTime * speed;
-                auto newPos = transforms[e].position + deltaPos;
+            auto deltaPos = moveDir * deltaTime * speed;
+            auto newPos = transforms[p].position + deltaPos;
 
-                auto eSize = getSize(e, sprites, scales);
-                auto half = eSize / 2.f;
+            auto& half = colliders[p].halfSize;
 
-                auto neighbors = getNeighbors(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize)); 
-                auto currTile = getTile(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize));
-                assert(currTile != -1); 
+            auto neighbors = getNeighbors(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize)); 
+            auto currTile = getTile(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize));
+            assert(currTile != -1); 
 
-                Rectangle tileDest = {
-                    .x = int(newPos.x / map.tileSize) * map.tileSize,
-                    .y = int(newPos.y / map.tileSize) * map.tileSize,
-                    .width = map.tileSize,
-                    .height = map.tileSize,
-                };
+            Rectangle tileDest = {
+                .x = int(newPos.x / map.tileSize) * map.tileSize,
+                .y = int(newPos.y / map.tileSize) * map.tileSize,
+                .width = map.tileSize,
+                .height = map.tileSize,
+            };
 
-                if(!neighbors[0] || neighbors[0] == -1) { // top neighbor
-                    if(newPos.y - half.y < tileDest.y)
-                        newPos.y = tileDest.y + half.y;
-                }
-                if(!neighbors[1] || neighbors[1] == -1) { // right neighbor
-                    if(newPos.x + half.x > tileDest.x + tileDest.width)
-                        newPos.x = tileDest.x + tileDest.width - half.x;
-                }
-                if(!neighbors[2] || neighbors[2] == -1) { // bottom neighbor
-                    if(newPos.y + half.y > tileDest.y + tileDest.height)
-                        newPos.y = tileDest.y + tileDest.height - half.y;
-                }
-                if(!neighbors[3] || neighbors[3] == -1) { // left neighbor
-                    if(newPos.x - half.x < tileDest.x)
-                        newPos.x = tileDest.x + half.x;
-                }
-
-                transforms[e].position = newPos;
+            if(!neighbors[0] || neighbors[0] == -1) { // top neighbor
+                if(newPos.y - half.y < tileDest.y)
+                    newPos.y = tileDest.y + half.y;
             }
+            if(!neighbors[1] || neighbors[1] == -1) { // right neighbor
+                if(newPos.x + half.x > tileDest.x + tileDest.width)
+                    newPos.x = tileDest.x + tileDest.width - half.x;
+            }
+            if(!neighbors[2] || neighbors[2] == -1) { // bottom neighbor
+                if(newPos.y + half.y > tileDest.y + tileDest.height)
+                    newPos.y = tileDest.y + tileDest.height - half.y;
+            }
+            if(!neighbors[3] || neighbors[3] == -1) { // left neighbor
+                if(newPos.x - half.x < tileDest.x)
+                    newPos.x = tileDest.x + half.x;
+            }
+
+            transforms[p].position = newPos;
         }
 
         // enemy AI movement system
-        for(Entity e = 0; e < entityCount; e++) {
-            if(isEnemy[e]) {
-                if(health[e] == 0) continue;
+        for(const auto& e : enemyEntities) {
+            if(healths[e].value == 0) continue; // dead enemies don't move :)
 
-                // TODO: remove hard-coded playerID
-                Vector2 enemyToPlayer = transforms[playerID].position - transforms[e].position;
+            // TODO: remove hard-coded playerID
+            Vector2 enemyToPlayer = transforms[playerID].position - transforms[e].position;
 
-                transforms[e].position += enemyToPlayer / 500.f;
+            transforms[e].position += enemyToPlayer / 500.f;
 
-                if( enemyToPlayer.x < 0)
-                    direction[e] = -1;
-                else
-                    direction[e] = 1;
-            }
+            if( enemyToPlayer.x < 0)
+                direction[e] = -1;
+            else
+                direction[e] = 1;
         }
 
         // rotation system
@@ -356,28 +405,25 @@ int main() {
             transforms[e].position = center + offset;
         }
 
-        // check weapon collisions with enemies
-        for(Entity e_i = 0; e_i < entityCount; e_i++) {
-            if(isWeapon[e_i]) {
-                for(Entity e_j = 0; e_j < entityCount; e_j++) {
-                    if(e_i == e_j) continue;
+        // collision detection
 
-                    if(isEnemy[e_j]) {
-                        auto sizeWeapon = getSize(e_i, sprites, scales);
-                        auto sizeEnemy = getSize(e_j, sprites, scales);
+        collisions.clear();
 
-                        auto& wTran = transforms[e_i];
-                        auto& eTran = transforms[e_j];
+        // weapon + enemy collisions
+        for (Entity w : weaponEntities) {
+            for (Entity e : enemyEntities) {
+                Rectangle rw = collision::fromCenter(transforms[w].position, colliders[w].halfSize * 2.f);
+                Rectangle re = collision::fromCenter(transforms[e].position, colliders[e].halfSize * 2.f);
 
-                        if (collision::intersectCentered(
-                            eTran.position, sizeEnemy, 
-                            wTran.position, sizeWeapon))
-                        {
-                            health[e_j] = 0.f;
-                            eTran.rotationThetaD = 90.f;
-                        }
-                    }
+                auto pen = collision::intersect(rw, re);
+                if (pen) {
+                    collisions.push_back({w, e, *pen});
                 }
+            }
+        }
+        for (auto& c : collisions) {
+            if (tags[c.a].hasWeapon && tags[c.b].hasEnemy) {
+                healths[c.b].value = 0.f;
             }
         }
 
@@ -412,23 +458,21 @@ int main() {
                 // render system
                 for (Entity e = 0; e < entityCount; e++) {
 
-                    Rectangle src = {
-                        sprites[e].x,
-                        sprites[e].y,
-                        sprites[e].width,
-                        sprites[e].height,
-                    };
+                    Rectangle src = sprites[e].src; // copy
 
                     // apply horizontal mirror based off direction
-                    if ((isPlayer[e] || isEnemy[e]))
+                    if ((tags[e].hasPlayer || tags[e].hasEnemy))
                         src.width *= direction[e];
 
-                    Vector2 destSize = getSize(e, sprites, scales);
+                    Vector2 renderSize = {
+                        .x = sprites[e].src.width * sprites[e].scale,
+                        .y = sprites[e].src.height * sprites[e].scale,
+                    };
                     Rectangle destRec = {
                         transforms[e].position.x,
                         transforms[e].position.y,
-                        destSize.x,
-                        destSize.y,
+                        renderSize.x,
+                        renderSize.y,
                     };
                     Vector2 origin = {
                         destRec.width / 2.f,
@@ -448,10 +492,10 @@ int main() {
                     if(!debugMode) continue;
 
                     Rectangle debugRect = {
-                        transforms[e].position.x - destSize.x / 2.f,
-                        transforms[e].position.y - destSize.y / 2.f,
-                        destSize.x,
-                        destSize.y
+                        transforms[e].position.x - renderSize.x / 2.f,
+                        transforms[e].position.y - renderSize.y / 2.f,
+                        renderSize.x,
+                        renderSize.y
                     };
 
                     DrawRectangleLinesEx(debugRect, 2.0f, GREEN);

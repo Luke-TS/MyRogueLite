@@ -3,11 +3,6 @@
 #include <raylib.h>
 #include <string> // for texture file path
 
-// Sprite as an alias of Rectangle containing:
-// (x, y) as coordinates in texture
-// (width, height) as dimensions of the texture
-using Sprite = Rectangle;
-
 // defines sprite structs for each asset 
 // in dungeon_tileset.png
 //
@@ -21,41 +16,41 @@ inline std::string texturePath = std::string(ASSETS_DIR)
 // texture grid contains 16x16 squares
 inline const int gridSquareSize = 16;
 
-inline const Sprite floorTileStart = {
+inline const Rectangle floorTileStart = {
     .x = 0 * gridSquareSize,
     .y = 7 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize
 };
 
-inline const Sprite characterStart = {
+inline const Rectangle characterStart = {
     .x = 0 * gridSquareSize,
     .y = 26 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 2 * gridSquareSize,
 };
 
-inline const Sprite weaponStart = {
+inline const Rectangle weaponStart = {
     .x = 8 * gridSquareSize,
     .y = 24 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize,
 };
 
-inline const Sprite monsterStart = {
+inline const Rectangle monsterStart = {
     .x = 13 * gridSquareSize,
     .y = 29 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 2 * gridSquareSize,
 };
 
-inline Sprite getFloorTile(int idx) {
+inline Rectangle getFloorTile(int idx) {
     // get floor row/col
     const int row = idx / 30;
     const int col = idx % 30;
 
     // calculate random sprite (x, y)
-    Sprite sprite = floorTileStart; 
+    Rectangle sprite = floorTileStart; 
     sprite.x += col * gridSquareSize;
     sprite.y += row * gridSquareSize;
     return sprite;
