@@ -20,44 +20,61 @@
 // checking intersections and such
 #include "collision_logic.hpp"
 
-const float speed = 300.0f;
-const int currentFPS = 120;
-const int screenWidth = 1200;
-const int screenHeight = 800;
+constexpr float speed = 300.0f;
+constexpr int currentFPS = 120;
+constexpr int screenWidth = 1200;
+constexpr int screenHeight = 800;
 
 using Entity = int;
 
-const Entity playerID = 0;
-const Entity enemyID  = 1;
-const Entity weaponID = 2;
-const Entity weapon2ID = 3;
-const Entity weapon3ID = 4;
-const int entityCount = 5;
+constexpr Entity playerID = 0;
+constexpr Entity enemyID  = 1;
+constexpr Entity weaponID = 2;
+constexpr Entity weapon2ID = 3;
+constexpr Entity weapon3ID = 4;
+constexpr int entityCount = 5;
 
 // reads WASD input and returns
 // normalized direction vector
 Vector2 GetWASDMovement();
 
-Vector2 getSize(Entity e, Rectangle* sprites, float* scales);
-
+struct Tile {
+    int spriteIndex; // for rendering
+    bool solid;
+};
 struct TileMap {
     int width, height;
     float tileSize;
 
-    std::vector<int> tiles; // indices into tileset
+    std::vector<Tile> tiles;
 };
-std::optional<int> getTile(const TileMap& map, int x, int y) {
-    if(x < 0 || x > map.width-1) return std::nullopt;
-    if(y < 0 || y > map.height-1) return std::nullopt;
-    return map.tiles[y * map.width + x];
-};
-std::vector<std::optional<int>> getNeighbors(const TileMap& map, int x, int y) {
-    std::vector<std::optional<int>> tiles(4);
-    tiles[0] = getTile(map, x, y-1); // top
-    tiles[1] = getTile(map, x+1, y); // right
-    tiles[2] = getTile(map, x, y+1); // bottom
-    tiles[3] = getTile(map, x-1, y); // right
-    return tiles;
+inline Tile* getTile(TileMap& map, int x, int y) {
+    if (x < 0 || x >= map.width)  return nullptr;
+    if (y < 0 || y >= map.height) return nullptr;
+    return &map.tiles[y * map.width + x];
+}
+std::vector<Rectangle> getNearbySolidTiles(const TileMap& map, Vector2 pos) {
+    std::vector<Rectangle> result;
+
+    int tx = int(pos.x / map.tileSize);
+    int ty = int(pos.y / map.tileSize);
+
+    for (int y = ty - 1; y <= ty + 1; y++) {
+        for (int x = tx - 1; x <= tx + 1; x++) {
+            const Tile* t = getTile(const_cast<TileMap&>(map), x, y);
+
+            if (t && t->solid) {
+                result.push_back(Rectangle{
+                    x * map.tileSize,
+                    y * map.tileSize,
+                    map.tileSize,
+                    map.tileSize
+                });
+            }
+        }
+    }
+
+    return result;
 }
 
 typedef struct _tfc {
@@ -112,10 +129,17 @@ int main() {
         for(int j = 0; j < map.width; j++) {
             bool isTile;
             file >> isTile;
-            if(isTile)
-                map.tiles.push_back(DungeonTileSet::randomFloorTileIdx());
-            else
-                map.tiles.push_back(-1);
+            if (isTile) {
+                map.tiles.push_back({
+                    .spriteIndex = DungeonTileSet::randomFloorTileIdx(),
+                    .solid = false
+                });
+            } else {
+                map.tiles.push_back({
+                    .spriteIndex = 0, // or unused
+                    .solid = true
+                });
+            }
         }
     }
 
@@ -202,12 +226,15 @@ int main() {
     };
     tags[weaponID] = {
         .hasWeapon = true,
+        .hasContainment = false,
     };
     tags[weapon2ID] = {
         .hasWeapon = true,
+        .hasContainment = false,
     };
     tags[weapon3ID] = {
         .hasWeapon = true,
+        .hasContainment = false,
     };
 
     // orbit component
@@ -286,12 +313,6 @@ int main() {
         if(IsKeyPressed(KEY_RIGHT))
             sprites[playerID].src.y += DungeonTileSet::gridSquareSize;
 
-        if(IsKeyPressed(KEY_T)) {
-            map.tiles.clear();
-            for(int i = 0; i < map.width*map.height; i++)
-                map.tiles.push_back(DungeonTileSet::randomFloorTileIdx());
-        }
-
         // Camera zoom controls
         // Uses log scaling to provide consistent zoom speed
         camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
@@ -321,46 +342,11 @@ int main() {
 
         // WASD movement system
         Vector2 moveDir = GetWASDMovement();
-        for(const auto& p : playerEntities) {
-            if( moveDir.x < -0.1f)
-                direction[p] = -1;
-            if( moveDir.x > +0.1f)
-                direction[p] = 1;
+        for (const auto& p : playerEntities) {
+            if (moveDir.x < -0.1f) direction[p] = -1;
+            if (moveDir.x > +0.1f) direction[p] = 1;
 
-            auto deltaPos = moveDir * deltaTime * speed;
-            auto newPos = transforms[p].position + deltaPos;
-
-            auto& half = colliders[p].halfSize;
-
-            auto neighbors = getNeighbors(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize)); 
-            auto currTile = getTile(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize));
-            assert(currTile != -1); 
-
-            Rectangle tileDest = {
-                .x = int(newPos.x / map.tileSize) * map.tileSize,
-                .y = int(newPos.y / map.tileSize) * map.tileSize,
-                .width = map.tileSize,
-                .height = map.tileSize,
-            };
-
-            if(!neighbors[0] || neighbors[0] == -1) { // top neighbor
-                if(newPos.y - half.y < tileDest.y)
-                    newPos.y = tileDest.y + half.y;
-            }
-            if(!neighbors[1] || neighbors[1] == -1) { // right neighbor
-                if(newPos.x + half.x > tileDest.x + tileDest.width)
-                    newPos.x = tileDest.x + tileDest.width - half.x;
-            }
-            if(!neighbors[2] || neighbors[2] == -1) { // bottom neighbor
-                if(newPos.y + half.y > tileDest.y + tileDest.height)
-                    newPos.y = tileDest.y + tileDest.height - half.y;
-            }
-            if(!neighbors[3] || neighbors[3] == -1) { // left neighbor
-                if(newPos.x - half.x < tileDest.x)
-                    newPos.x = tileDest.x + half.x;
-            }
-
-            transforms[p].position = newPos;
+            transforms[p].position += moveDir * deltaTime * speed;
         }
 
         // enemy AI movement system
@@ -372,10 +358,8 @@ int main() {
 
             transforms[e].position += enemyToPlayer / 500.f;
 
-            if( enemyToPlayer.x < 0)
-                direction[e] = -1;
-            else
-                direction[e] = 1;
+            if( enemyToPlayer.x < 0) direction[e] = -1;
+            else                     direction[e] = 1;
         }
 
         // rotation system
@@ -409,7 +393,7 @@ int main() {
 
         collisions.clear();
 
-        // weapon + enemy collisions
+        // weapon vs enemy detection
         for (Entity w : weaponEntities) {
             for (Entity e : enemyEntities) {
                 Rectangle rw = collision::fromCenter(transforms[w].position, colliders[w].halfSize * 2.f);
@@ -421,7 +405,38 @@ int main() {
                 }
             }
         }
+
+        // entity vs tile detection
+        for (Entity e = 0; e < entityCount; e++) {
+            if (!tags[e].hasContainment) continue;
+
+            Rectangle entityRect = collision::fromCenter(
+                transforms[e].position,
+                colliders[e].halfSize * 2.f
+            );
+
+            auto tiles = getNearbySolidTiles(map, transforms[e].position);
+
+            for (auto& tileRect : tiles) {
+                if (auto pen = collision::intersect(entityRect, tileRect)) {
+                    collisions.push_back({e, -1, *pen}); // -1 = tile
+                }
+            }
+        }
+
+        // collision resolution
+
         for (auto& c : collisions) {
+            // entity vs tile
+            if (c.b == -1) {
+                auto& pos = transforms[c.a].position;
+
+                pos += c.penetration;
+
+                continue;
+            }
+
+            // weapon vs enemy
             if (tags[c.a].hasWeapon && tags[c.b].hasEnemy) {
                 healths[c.b].value = 0.f;
             }
@@ -440,9 +455,8 @@ int main() {
                 //DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
                 for (int y = 0; y < map.height; y++) {
                     for (int x = 0; x < map.width; x++) {
-                        auto src = getTile(map, x, y);
-
-                        if(src == -1) continue; // empty map tile
+                        auto tile = getTile(map, x, y);
+                        if (!tile || tile->solid) continue;
 
                         Rectangle dest = {
                             x * map.tileSize,
@@ -451,7 +465,7 @@ int main() {
                             map.tileSize
                         };
 
-                        DrawTexturePro(dungeonTextureSet, DungeonTileSet::getFloorTile(*src), dest, {0,0}, 0, WHITE);
+                        DrawTexturePro(dungeonTextureSet, DungeonTileSet::getFloorTile(tile->spriteIndex), dest, {0,0}, 0, WHITE);
                     }
                 }
 
@@ -523,11 +537,4 @@ Vector2 GetWASDMovement() {
         result.y += 1;
 
     return normalize(result);
-}
-
-Vector2 getSize(Entity e, Rectangle* sprites, float* scales) {
-    return {
-        sprites[e].width  * scales[e],
-        sprites[e].height * scales[e]
-    };
 }

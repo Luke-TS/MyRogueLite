@@ -29,7 +29,7 @@ inline Vector2 center(const Rectangle& r) {
 // Core collision
 // ----------------------
 
-// Returns penetration vector to resolve A out of B
+// Returns penetration of vector to resolve A out of B
 // nullopt = no intersection
 inline std::optional<Vector2> intersect(const Rectangle& a, const Rectangle& b) {
     float overlapX = std::min(a.x + a.width,  b.x + b.width)  - std::max(a.x, b.x);
