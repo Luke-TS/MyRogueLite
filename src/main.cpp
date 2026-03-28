@@ -1,11 +1,11 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <fstream>
 #include <optional>
 #include <raylib.h>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -46,11 +46,13 @@ struct TileMap {
 
     std::vector<int> tiles; // indices into tileset
 };
-int getTile(const TileMap& map, int x, int y) {
+std::optional<int> getTile(const TileMap& map, int x, int y) {
+    if(x < 0 || x > map.width-1) return std::nullopt;
+    if(y < 0 || y > map.height-1) return std::nullopt;
     return map.tiles[y * map.width + x];
 };
-std::vector<int> getNeighbors(const TileMap& map, int x, int y) {
-    std::vector<int> tiles(4);
+std::vector<std::optional<int>> getNeighbors(const TileMap& map, int x, int y) {
+    std::vector<std::optional<int>> tiles(4);
     tiles[0] = getTile(map, x, y-1); // top
     tiles[1] = getTile(map, x+1, y); // right
     tiles[2] = getTile(map, x, y+1); // bottom
@@ -130,6 +132,12 @@ int main() {
 
     positions[playerID] = tileCenter;
     positions[enemyID] =  tileCenter / 2.f;
+
+    std::vector<int> direction(entityCount, 1);
+
+    std::vector<bool> isContained(entityCount, false);
+    isContained[playerID] = true;
+    isContained[enemyID] = true;
 
     float     rotations[entityCount] = {0.f};  // in degrees
     float     spinSpeeds[entityCount] = {0.f}; // degrees/second
@@ -217,23 +225,32 @@ int main() {
         // Camera zoom controls
         // Uses log scaling to provide consistent zoom speed
         camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
+        if(IsKeyPressed(KEY_I))
+            camera.zoom += 0.2f;
+        if(IsKeyPressed(KEY_O))
+            camera.zoom -= 0.2f;
 
-        if (camera.zoom > 3.0f) camera.zoom = 3.0f;
+        if (camera.zoom > 4.0f) camera.zoom = 4.0f;
         else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
 
         // WASD movement system
         Vector2 moveDir = GetWASDMovement();
         for(Entity e = 0; e < entityCount; e++) {
             if(isPlayer[e]) {
-                auto eSize = getSize(e, sprites, scales);
-                auto half = eSize / 2.f;
+                if( moveDir.x < -0.1f)
+                    direction[e] = -1;
+                if( moveDir.x > +0.1f)
+                    direction[e] = 1;
 
                 auto deltaPos = moveDir * deltaTime * speed;
                 auto newPos = positions[e] + deltaPos;
 
+                auto eSize = getSize(e, sprites, scales);
+                auto half = eSize / 2.f;
+
                 auto neighbors = getNeighbors(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize)); 
                 auto currTile = getTile(map, int(newPos.x / map.tileSize), int(newPos.y / map.tileSize));
-                assert(currTile != -1); // current tile should be valid
+                assert(currTile != -1); 
 
                 Rectangle tileDest = {
                     .x = int(newPos.x / map.tileSize) * map.tileSize,
@@ -242,25 +259,31 @@ int main() {
                     .height = map.tileSize,
                 };
 
-                if(neighbors[0] == -1) { // top neighbor
+                if(!neighbors[0] || neighbors[0] == -1) { // top neighbor
                     if(newPos.y - half.y < tileDest.y)
                         newPos.y = tileDest.y + half.y;
                 }
-                if(neighbors[1] == -1) { // right neighbor
+                if(!neighbors[1] || neighbors[1] == -1) { // right neighbor
                     if(newPos.x + half.x > tileDest.x + tileDest.width)
                         newPos.x = tileDest.x + tileDest.width - half.x;
                 }
-                if(neighbors[2] == -1) { // bottom neighbor
+                if(!neighbors[2] || neighbors[2] == -1) { // bottom neighbor
                     if(newPos.y + half.y > tileDest.y + tileDest.height)
                         newPos.y = tileDest.y + tileDest.height - half.y;
                 }
-                if(neighbors[3] == -1) { // left neighbor
+                if(!neighbors[3] || neighbors[3] == -1) { // left neighbor
                     if(newPos.x - half.x < tileDest.x)
                         newPos.x = tileDest.x + half.x;
                 }
 
                 positions[e] = newPos;
             }
+        }
+
+        // containment system
+        for(Entity e = 0; e < entityCount; e++) {
+            if(!isContained[e]) continue;
+
         }
 
         // enemy AI movement system
@@ -271,6 +294,11 @@ int main() {
                 Vector2 enemyToPlayer = positions[playerID] - positions[e];
 
                 positions[e] += enemyToPlayer / 500.f;
+
+                if( enemyToPlayer.x < 0)
+                    direction[e] = -1;
+                else
+                    direction[e] = 1;
             }
         }
 
@@ -338,9 +366,9 @@ int main() {
                         auto sizeWeapon = getSize(e_i, sprites, scales);
                         auto sizeEnemy = getSize(e_j, sprites, scales);
 
-                        if (rectIntersectionCentered(
-                            positions[e_j], sizeEnemy.x, sizeEnemy.y, 
-                            positions[e_i], sizeWeapon.x, sizeWeapon.y))
+                        if (collision::intersectCentered(
+                            positions[e_j], sizeEnemy, 
+                            positions[e_i], sizeWeapon))
                         {
                             health[e_j] = 0.f;
                             rotations[e_j] = 90.f;
@@ -374,13 +402,23 @@ int main() {
                             map.tileSize
                         };
 
-                        DrawTexturePro(dungeonTextureSet, DungeonTileSet::getFloorTile(src), dest, {0,0}, 0, WHITE);
+                        DrawTexturePro(dungeonTextureSet, DungeonTileSet::getFloorTile(*src), dest, {0,0}, 0, WHITE);
                     }
                 }
 
                 // render system
                 for (Entity e = 0; e < entityCount; e++) {
-                    //if ((isPlayer[e] || isEnemy[e]) && (health[e] == 0)) continue;
+
+                    Rectangle src = {
+                        sprites[e].x,
+                        sprites[e].y,
+                        sprites[e].width,
+                        sprites[e].height,
+                    };
+
+                    // apply horizontal mirror based off direction
+                    if ((isPlayer[e] || isEnemy[e]))
+                        src.width *= direction[e];
 
                     Vector2 destSize = getSize(e, sprites, scales);
                     Rectangle destRec = {
@@ -395,7 +433,7 @@ int main() {
                     };
                     DrawTexturePro(
                         dungeonTextureSet,
-                        sprites[e],
+                        src,
                         destRec,
                         origin,
                         rotations[e],
