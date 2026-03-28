@@ -60,7 +60,28 @@ std::vector<std::optional<int>> getNeighbors(const TileMap& map, int x, int y) {
     return tiles;
 }
 
-typedef struct {
+typedef struct _tfc {
+    Vector2 position;
+    float   rotationThetaD; // degrees
+    float   rotationSpeedD; // degrees per sec
+                            // fps * 5 = 5 rotations per sec
+} TransformComp;
+
+typedef struct _cc {
+    Vector2 halfSize;
+} ColliderComp;
+
+typedef struct _hc {
+    float value;
+} HealthComp;
+
+typedef struct _tc {
+    bool hasPlayer = false;
+    bool hasEnemy  = false;
+    bool hasWeapon = false;
+} TagComp;
+
+typedef struct _o {
     Entity target;
     float radius;
     float angle;
@@ -105,6 +126,29 @@ int main() {
         map.height * map.tileSize / 2.f
     };
 
+    std::vector<TransformComp> transforms(entityCount);
+
+    transforms[playerID] = {
+        .position = tileCenter,
+        .rotationThetaD = 0.f,
+    };
+    transforms[enemyID] = {
+        .position = tileCenter,
+        .rotationThetaD = 0.f,
+    };
+    transforms[weaponID] = {
+        .rotationThetaD = 0.f,
+        .rotationSpeedD = currentFPS * 5.f,
+    };
+    transforms[weapon2ID] = {
+        .rotationThetaD = 0.f,
+        .rotationSpeedD = currentFPS * 5.f,
+    };
+    transforms[weapon3ID] = {
+        .rotationThetaD = 0.f,
+        .rotationSpeedD = currentFPS * 5.f,
+    };
+
     // render component
     Rectangle sprites[entityCount];
     float     scales[entityCount] = {1.f};
@@ -127,23 +171,11 @@ int main() {
     sprites[weapon3ID].height -= 10;
     scales[weapon3ID] = 4.f;
 
-    // transform component
-    Vector2   positions[entityCount];
-
-    positions[playerID] = tileCenter;
-    positions[enemyID] =  tileCenter / 2.f;
-
     std::vector<int> direction(entityCount, 1);
 
     std::vector<bool> isContained(entityCount, false);
     isContained[playerID] = true;
     isContained[enemyID] = true;
-
-    float     rotations[entityCount] = {0.f};  // in degrees
-    float     spinSpeeds[entityCount] = {0.f}; // degrees/second
-    spinSpeeds[weaponID] = currentFPS * 5.f; // 5 spin per second
-    spinSpeeds[weapon2ID] = currentFPS * 5.f;
-    spinSpeeds[weapon3ID] = currentFPS * 5.f;
 
     bool isPlayer[entityCount] = {false};
     isPlayer[playerID] = true;
@@ -189,7 +221,7 @@ int main() {
     orbitEntities.push_back(weapon3ID);
 
     Camera2D camera = { 0 };
-    camera.target = positions[playerID];
+    camera.target = tileCenter;
     camera.offset = Vector2{screenWidth, screenHeight} / 2.f;
     camera.rotation = 0.f;
     camera.zoom = 1.f;
@@ -208,7 +240,7 @@ int main() {
 
         if(IsKeyPressed(KEY_R)) {
             health[enemyID] = 100.f;
-            rotations[enemyID] = 0.f;
+            transforms[enemyID].rotationThetaD = 0.f;
         }
 
         if(IsKeyPressed(KEY_LEFT))
@@ -243,7 +275,7 @@ int main() {
                     direction[e] = 1;
 
                 auto deltaPos = moveDir * deltaTime * speed;
-                auto newPos = positions[e] + deltaPos;
+                auto newPos = transforms[e].position + deltaPos;
 
                 auto eSize = getSize(e, sprites, scales);
                 auto half = eSize / 2.f;
@@ -276,14 +308,8 @@ int main() {
                         newPos.x = tileDest.x + half.x;
                 }
 
-                positions[e] = newPos;
+                transforms[e].position = newPos;
             }
-        }
-
-        // containment system
-        for(Entity e = 0; e < entityCount; e++) {
-            if(!isContained[e]) continue;
-
         }
 
         // enemy AI movement system
@@ -291,9 +317,10 @@ int main() {
             if(isEnemy[e]) {
                 if(health[e] == 0) continue;
 
-                Vector2 enemyToPlayer = positions[playerID] - positions[e];
+                // TODO: remove hard-coded playerID
+                Vector2 enemyToPlayer = transforms[playerID].position - transforms[e].position;
 
-                positions[e] += enemyToPlayer / 500.f;
+                transforms[e].position += enemyToPlayer / 500.f;
 
                 if( enemyToPlayer.x < 0)
                     direction[e] = -1;
@@ -304,7 +331,8 @@ int main() {
 
         // rotation system
         for(Entity e = 0; e < entityCount; e++) {
-            rotations[e] += spinSpeeds[e] * deltaTime;
+            auto& eTran = transforms[e];
+            eTran.rotationThetaD += eTran.rotationSpeedD * deltaTime;
         }
 
         // orbit system
@@ -316,7 +344,7 @@ int main() {
             o.angle += deltaTime * o.speed;
 
             // get target position
-            Vector2 center = positions[o.target];
+            Vector2 center = transforms[o.target].position;
 
             // compute offset
             Vector2 offset = {
@@ -325,36 +353,8 @@ int main() {
             };
 
             // set entity position
-            positions[e] = center + offset;
+            transforms[e].position = center + offset;
         }
-
-        // clamp player to tile
-        /*
-        Vector2 half = getSize(playerID, sprites, scales) / 2.f;
-        positions[playerID].x = std::clamp(
-            positions[playerID].x,
-            0 + half.x,
-            0 + map.width*map.tileSize - half.x
-        );
-        positions[playerID].y = std::clamp(
-            positions[playerID].y,
-            0 + half.y,
-            0 + map.height*map.tileSize - half.y
-        );
-        */
-
-        /* TODO
-        // convert world → tile coordinates
-        int tx = positions[playerID].x / map.tileSize;
-        int ty = positions[playerID].y / map.tileSize;
-
-        // check surrounding tiles
-        for (each nearby tile) {
-            if (tile is solid) {
-                resolve collision
-            }
-        }
-        */
 
         // check weapon collisions with enemies
         for(Entity e_i = 0; e_i < entityCount; e_i++) {
@@ -366,12 +366,15 @@ int main() {
                         auto sizeWeapon = getSize(e_i, sprites, scales);
                         auto sizeEnemy = getSize(e_j, sprites, scales);
 
+                        auto& wTran = transforms[e_i];
+                        auto& eTran = transforms[e_j];
+
                         if (collision::intersectCentered(
-                            positions[e_j], sizeEnemy, 
-                            positions[e_i], sizeWeapon))
+                            eTran.position, sizeEnemy, 
+                            wTran.position, sizeWeapon))
                         {
                             health[e_j] = 0.f;
-                            rotations[e_j] = 90.f;
+                            eTran.rotationThetaD = 90.f;
                         }
                     }
                 }
@@ -379,7 +382,7 @@ int main() {
         }
 
         // update camera target
-        camera.target = positions[playerID];
+        camera.target = transforms[playerID].position;
 
         BeginDrawing();
         {
@@ -422,8 +425,8 @@ int main() {
 
                     Vector2 destSize = getSize(e, sprites, scales);
                     Rectangle destRec = {
-                        positions[e].x,
-                        positions[e].y,
+                        transforms[e].position.x,
+                        transforms[e].position.y,
                         destSize.x,
                         destSize.y,
                     };
@@ -436,7 +439,7 @@ int main() {
                         src,
                         destRec,
                         origin,
-                        rotations[e],
+                        transforms[e].rotationThetaD,
                         WHITE
                     );
 
@@ -445,14 +448,14 @@ int main() {
                     if(!debugMode) continue;
 
                     Rectangle debugRect = {
-                        positions[e].x - destSize.x / 2.f,
-                        positions[e].y - destSize.y / 2.f,
+                        transforms[e].position.x - destSize.x / 2.f,
+                        transforms[e].position.y - destSize.y / 2.f,
                         destSize.x,
                         destSize.y
                     };
 
                     DrawRectangleLinesEx(debugRect, 2.0f, GREEN);
-                    DrawCircleV(positions[e], 3.0f, RED);
+                    DrawCircleV(transforms[e].position, 3.0f, RED);
                 }
             }
             EndMode2D();
