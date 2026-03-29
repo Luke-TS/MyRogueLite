@@ -5,9 +5,13 @@
 #include <ctime>
 #include <fstream>
 #include <optional>
-#include <raylib.h>
 #include <string>
 #include <vector>
+
+#include <raylib.h> // goat
+
+// custom freelist ECS for the game 
+#include "world_ECS.hpp"
 
 // header for obaining sprites 
 // from dungeon_tileset.png
@@ -20,19 +24,11 @@
 // checking intersections and such
 #include "collision_logic.hpp"
 
-constexpr float speed = 300.0f;
-constexpr int currentFPS = 120;
+constexpr int fps = 120;
+constexpr float playerSpeed = 350.f;
+constexpr float enemySpeed = 150.f;
 constexpr int screenWidth = 1200;
 constexpr int screenHeight = 800;
-
-using Entity = int;
-
-constexpr Entity playerID = 0;
-constexpr Entity enemyID  = 1;
-constexpr Entity weaponID = 2;
-constexpr Entity weapon2ID = 3;
-constexpr Entity weapon3ID = 4;
-constexpr int entityCount = 5;
 
 // reads WASD input and returns
 // normalized direction vector
@@ -77,40 +73,6 @@ std::vector<Rectangle> getNearbySolidTiles(const TileMap& map, Vector2 pos) {
     return result;
 }
 
-typedef struct _tfc {
-    Vector2 position;
-    float   rotationThetaD; // degrees
-    float   rotationSpeedD; // degrees per sec
-                            // fps * 5 = 5 rotations per sec
-} TransformComp;
-
-typedef struct _cc {
-    Vector2 halfSize;
-} ColliderComp;
-
-struct Sprite {
-    Rectangle src;
-    float scale;
-};
-
-typedef struct _hc {
-    float value;
-} HealthComp;
-
-typedef struct _tc {
-    bool hasPlayer      = false;
-    bool hasEnemy       = false;
-    bool hasWeapon      = false;
-    bool hasContainment = true; // contained by map boundaries
-                                // true by default
-} TagComp;
-
-typedef struct _o {
-    Entity target;
-    float radius;
-    float angle;
-    float speed;
-} Orbit;
 
 int main() {
     srand(time(NULL));
@@ -148,121 +110,50 @@ int main() {
         map.height * map.tileSize / 2.f
     };
 
-    // transform component
+    ECS ecs;
 
-    std::vector<TransformComp> transforms(entityCount);
+    // spawn player
+    Entity player = ecs.create();
+    ecs.tags[player].hasPlayer      = true;
+    ecs.tags[player].hasContainment = true;
+    ecs.transforms[player].position = tileCenter;
+    ecs.healths[player].value       = 100.f;
+    ecs.healths[player].maxValue    = 100.f;
+    ecs.sprites[player]             = {DungeonTileSet::characterStart, 4.f};
 
-    transforms[playerID] = {
-        .position = tileCenter,
-        .rotationThetaD = 0.f,
+    // spawn enemy
+    Entity enemy = ecs.create();
+    ecs.tags[enemy].hasEnemy       = true;
+    ecs.tags[enemy].hasContainment = true;
+    ecs.transforms[enemy].position = tileCenter;
+    ecs.healths[enemy].value       = 100.f;
+    ecs.sprites[enemy]             = {DungeonTileSet::monsterStart, 4.f};
+
+    // spawn orbiting weapon
+    Entity weapon1 = ecs.create();
+    ecs.tags[weapon1].hasWeapon = true;
+    ecs.hasOrbit[weapon1]       = true;
+    ecs.transforms[weapon1].rotationSpeedD = 720.f;
+    ecs.orbits[weapon1] = {
+        .target     = player,
+        .radius     = 128.f,
+        .angleD     = 0.f,
+        .rotateRate = 0.25f,
     };
-    transforms[enemyID] = {
-        .position = tileCenter,
-        .rotationThetaD = 0.f,
-    };
-    transforms[weaponID] = {
-        .rotationThetaD = 0.f,
-        .rotationSpeedD = currentFPS * 5.f,
-    };
-    transforms[weapon2ID] = {
-        .rotationThetaD = 0.f,
-        .rotationSpeedD = currentFPS * 5.f,
-    };
-    transforms[weapon3ID] = {
-        .rotationThetaD = 0.f,
-        .rotationSpeedD = currentFPS * 5.f,
-    };
+    ecs.sprites[weapon1] = {DungeonTileSet::axeSprite, 4.f};
 
-    // sprite component
-    std::vector<Sprite> sprites(entityCount);
+    Entity weapon2 = ecs.createCopy(weapon1);
+    ecs.orbits[weapon2].angleD = 120.f;
+    Entity weapon3 = ecs.createCopy(weapon1);
+    ecs.orbits[weapon3].angleD = 240.f;
 
-    sprites[playerID].src    = DungeonTileSet::characterStart;
-    sprites[playerID].src.x += 17 * DungeonTileSet::gridSquareSize; // 17th character
-    sprites[playerID].scale = 4.f;
-
-    sprites[enemyID].src = DungeonTileSet::monsterStart;
-    sprites[enemyID].scale= 4.f;
-
-    sprites[weaponID].src = DungeonTileSet::weaponStart;
-    sprites[weaponID].src.y += 10;
-    sprites[weaponID].src.height -= 10;
-    sprites[weaponID].scale = 4.f;
-    sprites[weapon2ID].src = DungeonTileSet::weaponStart;
-    sprites[weapon2ID].src.y += 10;
-    sprites[weapon2ID].src.height -= 10;
-    sprites[weapon2ID].scale = 4.f;
-    sprites[weapon3ID].src = DungeonTileSet::weaponStart;
-    sprites[weapon3ID].src.y += 10;
-    sprites[weapon3ID].src.height -= 10;
-    sprites[weapon3ID].scale = 4.f;
-
-    // collider component; equal to sprite size*scale by default
-    std::vector<ColliderComp> colliders(entityCount);
-    for(Entity e = 0; e < entityCount; e++) {
-        colliders[e].halfSize = {
-            sprites[e].src.width * sprites[e].scale / 2.f,
-            sprites[e].src.height * sprites[e].scale / 2.f,
+    // default collider components
+    for(Entity e = 0; e < ecs.capacity(); e++) {
+        ecs.colliders[e].halfSize = {
+            .x = ecs.sprites[e].src.width*ecs.sprites[e].scale/2.f,
+            .y = ecs.sprites[e].src.height*ecs.sprites[e].scale/2.f,
         };
     }
-
-    // direction component
-
-    std::vector<int> direction(entityCount, 1);
-
-    // health component
-
-    std::vector<HealthComp> healths(entityCount);
-    healths[playerID].value = 100.f;
-    healths[enemyID].value = 100.f;
-
-    // tags component
-
-    std::vector<TagComp> tags(entityCount);
-    tags[playerID] = {
-        .hasPlayer = true,
-    };
-    tags[enemyID] = {
-        .hasEnemy = true,
-    };
-    tags[weaponID] = {
-        .hasWeapon = true,
-        .hasContainment = false,
-    };
-    tags[weapon2ID] = {
-        .hasWeapon = true,
-        .hasContainment = false,
-    };
-    tags[weapon3ID] = {
-        .hasWeapon = true,
-        .hasContainment = false,
-    };
-
-    // orbit component
-
-    std::vector<Orbit> orbits;
-    std::vector<Entity> orbitEntities;
-
-    orbits.push_back({
-        .target = playerID,
-        .radius = 128.f,
-        .angle  = 0.f,
-        .speed  = 2.5f,
-    });
-    orbitEntities.push_back(weaponID);
-    orbits.push_back({
-        .target = playerID,
-        .radius = 128.f,
-        .angle  = (2.f/3.f) * 3.14f,
-        .speed  = 2.5f,
-    });
-    orbitEntities.push_back(weapon2ID);
-    orbits.push_back({
-        .target = playerID,
-        .radius = 128.f,
-        .angle  = (4.f/3.f) * 3.14f,
-        .speed  = 2.5f,
-    });
-    orbitEntities.push_back(weapon3ID);
 
     // camera setup
 
@@ -292,7 +183,7 @@ int main() {
 
     // main loop
 
-    SetTargetFPS(currentFPS);
+    SetTargetFPS(fps);
     while (!WindowShouldClose()) { // close button or ESC key
 
         // game logic (inputs etc)
@@ -303,15 +194,25 @@ int main() {
             debugMode = 1 - debugMode;
         }
 
-        if(IsKeyPressed(KEY_R)) {
-            healths[enemyID].value = 100.f;
-            transforms[enemyID].rotationThetaD = 0.f;
+        if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_R)) {
+            const auto mouseScreen = GetMousePosition();
+            const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+            Entity enemy = ecs.create();
+            ecs.tags[enemy].hasEnemy       = true;
+            ecs.tags[enemy].hasContainment = true;
+            ecs.transforms[enemy].position = mouseWorld;
+            ecs.healths[enemy].value       = 100.f;
+            ecs.sprites[enemy]             = {DungeonTileSet::monsterStart, 4.f};
+            ecs.colliders[enemy].halfSize = {
+                .x = ecs.sprites[enemy].src.width*ecs.sprites[enemy].scale/2.f,
+                .y = ecs.sprites[enemy].src.height*ecs.sprites[enemy].scale/2.f,
+            };
         }
 
         if(IsKeyPressed(KEY_LEFT))
-            sprites[playerID].src.x -= DungeonTileSet::gridSquareSize;
+            ecs.sprites[player].src.x -= DungeonTileSet::gridSquareSize;
         if(IsKeyPressed(KEY_RIGHT))
-            sprites[playerID].src.y += DungeonTileSet::gridSquareSize;
+            ecs.sprites[player].src.x += DungeonTileSet::gridSquareSize;
 
         // Camera zoom controls
         // Uses log scaling to provide consistent zoom speed
@@ -324,69 +225,71 @@ int main() {
         if (camera.zoom > 4.0f) camera.zoom = 4.0f;
         else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
 
-        // segregate entities
-        playerEntities.clear();
-        weaponEntities.clear();
-        enemyEntities.clear();
-        for(Entity e = 0; e < entityCount; e++) {
-            const auto& eTags = tags[e];
-            if(eTags.hasPlayer)
-                playerEntities.push_back(e);
-            if(eTags.hasEnemy)
-                enemyEntities.push_back(e);
-            if(eTags.hasWeapon)
-                weaponEntities.push_back(e);
-        }
+        // IMPORTANT: rebuils cached views
+        ecs.rebuildViews();
 
-        // movement systems
+        // INTENT SYSTEMS
 
-        // WASD movement system
+        // WASD
         Vector2 moveDir = GetWASDMovement();
-        for (const auto& p : playerEntities) {
-            if (moveDir.x < -0.1f) direction[p] = -1;
-            if (moveDir.x > +0.1f) direction[p] = 1;
+        for (const auto& p : ecs.players) {
+            if (moveDir.x < -0.1f) ecs.directions[p].value = -1;
+            if (moveDir.x > +0.1f) ecs.directions[p].value = 1;
 
-            transforms[p].position += moveDir * deltaTime * speed;
+            ecs.velocities[p].value = moveDir * playerSpeed;
         }
 
         // enemy AI movement system
-        for(const auto& e : enemyEntities) {
-            if(healths[e].value == 0) continue; // dead enemies don't move :)
+        for(const auto& e : ecs.enemies) {
+            if(ecs.healths[e].value == 0) { // dead enemy
+                ecs.velocities[e].value = {0.f, 0.f};
+                continue;
+            }
 
             // TODO: remove hard-coded playerID
-            Vector2 enemyToPlayer = transforms[playerID].position - transforms[e].position;
+            Vector2 dir = normalize(ecs.transforms[player].position - ecs.transforms[e].position);
 
-            transforms[e].position += enemyToPlayer / 500.f;
+            ecs.velocities[e].value = dir * enemySpeed;
 
-            if( enemyToPlayer.x < 0) direction[e] = -1;
-            else                     direction[e] = 1;
+            if( dir.x < 0) ecs.directions[e].value = -1;
+            else           ecs.directions[e].value = 1;
         }
 
-        // rotation system
-        for(Entity e = 0; e < entityCount; e++) {
-            auto& eTran = transforms[e];
-            eTran.rotationThetaD += eTran.rotationSpeedD * deltaTime;
+        // INTEGRATION
+
+        // updates transformation
+        for (Entity e = 0; e < ecs.capacity(); e++) {
+            if (!ecs.isAlive(e)) continue;
+            if (ecs.hasOrbit[e]) continue; // orbit system owns these
+            auto& eTran = ecs.transforms[e];
+            eTran.position += ecs.velocities[e].value * deltaTime;
+            eTran.angleD += eTran.rotationSpeedD * deltaTime;
         }
 
         // orbit system
-        for (int i = 0; i < orbits.size(); i++) {
-            Entity e = orbitEntities[i];
-            Orbit& o = orbits[i];
+        for (Entity e = 0; e < ecs.capacity(); e++) {
+            if (!ecs.isAlive(e))  continue;
+            if (!ecs.hasOrbit[e]) continue;
+            OrbitComp& o = ecs.orbits[e];
 
             // update angle
-            o.angle += deltaTime * o.speed;
+            constexpr auto degreesPerRotation = 360;
+            o.angleD += deltaTime * o.rotateRate * degreesPerRotation;
 
             // get target position
-            Vector2 center = transforms[o.target].position;
+            if(!ecs.isAlive(o.target)) continue; // target entity invalid
+            Vector2 center = ecs.transforms[o.target].position;
 
             // compute offset
+            constexpr auto degreesToRadians = 3.14 / 180.f;
             Vector2 offset = {
-                std::cos(o.angle) * o.radius,
-                std::sin(o.angle) * o.radius
+                static_cast<float>(std::cos(o.angleD * degreesToRadians) * o.radius),
+                static_cast<float>(std::sin(o.angleD * degreesToRadians) * o.radius),
             };
 
             // set entity position
-            transforms[e].position = center + offset;
+            ecs.transforms[e].position = center + offset;
+            ecs.transforms[e].angleD += ecs.transforms[e].rotationSpeedD * deltaTime;
         }
 
         // collision detection
@@ -394,10 +297,10 @@ int main() {
         collisions.clear();
 
         // weapon vs enemy detection
-        for (Entity w : weaponEntities) {
-            for (Entity e : enemyEntities) {
-                Rectangle rw = collision::fromCenter(transforms[w].position, colliders[w].halfSize * 2.f);
-                Rectangle re = collision::fromCenter(transforms[e].position, colliders[e].halfSize * 2.f);
+        for (Entity w : ecs.weapons) {
+            for (Entity e : ecs.enemies) {
+                Rectangle rw = collision::fromCenter(ecs.transforms[w].position, ecs.colliders[w].halfSize * 2.f);
+                Rectangle re = collision::fromCenter(ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f);
 
                 auto pen = collision::intersect(rw, re);
                 if (pen) {
@@ -407,15 +310,16 @@ int main() {
         }
 
         // entity vs tile detection
-        for (Entity e = 0; e < entityCount; e++) {
-            if (!tags[e].hasContainment) continue;
+        for (Entity e = 0; e < ecs.capacity(); e++) {
+            if (!ecs.isAlive(e))             continue;
+            if (!ecs.tags[e].hasContainment) continue;
 
             Rectangle entityRect = collision::fromCenter(
-                transforms[e].position,
-                colliders[e].halfSize * 2.f
+                ecs.transforms[e].position,
+                ecs.colliders[e].halfSize * 2.f
             );
 
-            auto tiles = getNearbySolidTiles(map, transforms[e].position);
+            auto tiles = getNearbySolidTiles(map, ecs.transforms[e].position);
 
             for (auto& tileRect : tiles) {
                 if (auto pen = collision::intersect(entityRect, tileRect)) {
@@ -429,7 +333,7 @@ int main() {
         for (auto& c : collisions) {
             // entity vs tile
             if (c.b == -1) {
-                auto& pos = transforms[c.a].position;
+                auto& pos = ecs.transforms[c.a].position;
 
                 pos += c.penetration;
 
@@ -437,14 +341,14 @@ int main() {
             }
 
             // weapon vs enemy
-            if (tags[c.a].hasWeapon && tags[c.b].hasEnemy) {
-                healths[c.b].value = 0.f;
+            if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
+                //ecs.healths[c.b].value = 0.f;
+                ecs.markForDestroy(c.b);
             }
         }
 
         // update camera target
-        camera.target = transforms[playerID].position;
-
+        camera.target = ecs.transforms[player].position;
         BeginDrawing();
         {
             ClearBackground(BLACK);
@@ -470,21 +374,20 @@ int main() {
                 }
 
                 // render system
-                for (Entity e = 0; e < entityCount; e++) {
-
-                    Rectangle src = sprites[e].src; // copy
+                for (Entity e = 0; e < ecs.capacity(); e++) {
+                    if(!ecs.isAlive(e)) continue;
+                    Rectangle src = ecs.sprites[e].src; // copy
 
                     // apply horizontal mirror based off direction
-                    if ((tags[e].hasPlayer || tags[e].hasEnemy))
-                        src.width *= direction[e];
+                    src.width *= ecs.directions[e].value;
 
                     Vector2 renderSize = {
-                        .x = sprites[e].src.width * sprites[e].scale,
-                        .y = sprites[e].src.height * sprites[e].scale,
+                        .x = ecs.sprites[e].src.width * ecs.sprites[e].scale,
+                        .y = ecs.sprites[e].src.height * ecs.sprites[e].scale,
                     };
                     Rectangle destRec = {
-                        transforms[e].position.x,
-                        transforms[e].position.y,
+                        ecs.transforms[e].position.x,
+                        ecs.transforms[e].position.y,
                         renderSize.x,
                         renderSize.y,
                     };
@@ -497,7 +400,7 @@ int main() {
                         src,
                         destRec,
                         origin,
-                        transforms[e].rotationThetaD,
+                        ecs.transforms[e].angleD,
                         WHITE
                     );
 
@@ -506,19 +409,21 @@ int main() {
                     if(!debugMode) continue;
 
                     Rectangle debugRect = {
-                        transforms[e].position.x - renderSize.x / 2.f,
-                        transforms[e].position.y - renderSize.y / 2.f,
+                        ecs.transforms[e].position.x - renderSize.x / 2.f,
+                        ecs.transforms[e].position.y - renderSize.y / 2.f,
                         renderSize.x,
                         renderSize.y
                     };
 
                     DrawRectangleLinesEx(debugRect, 2.0f, GREEN);
-                    DrawCircleV(transforms[e].position, 3.0f, RED);
+                    DrawCircleV(ecs.transforms[e].position, 3.0f, RED);
                 }
             }
             EndMode2D();
         }
         EndDrawing();
+
+        ecs.destroyPending();
     }
 
     CloseWindow();

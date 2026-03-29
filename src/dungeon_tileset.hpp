@@ -37,11 +37,25 @@ inline const Rectangle weaponStart = {
     .height = 1 * gridSquareSize,
 };
 
+inline const Rectangle axeSprite = {
+    .x = 15 * gridSquareSize,
+    .y = 24 * gridSquareSize + 8,
+    .width = 1 * gridSquareSize,
+    .height = 1 * gridSquareSize - 8,
+};
+
 inline const Rectangle monsterStart = {
     .x = 13 * gridSquareSize,
     .y = 29 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 2 * gridSquareSize,
+};
+
+inline const Rectangle bonesDecor = {
+    .x = 7 * gridSquareSize,
+    .y = 15* gridSquareSize,
+    .width = 1 * gridSquareSize,
+    .height = 1 * gridSquareSize,
 };
 
 inline Rectangle getFloorTile(int idx) {
