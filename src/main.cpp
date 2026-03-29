@@ -209,6 +209,13 @@ int main() {
             };
         }
 
+        if(IsKeyPressed(KEY_T)) {
+            const auto mouseScreen = GetMousePosition();
+            const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+            assert(ecs.isAlive(player));
+            ecs.transforms[player].position = mouseWorld;
+        }
+
         if(IsKeyPressed(KEY_LEFT))
             ecs.sprites[player].src.x -= DungeonTileSet::gridSquareSize;
         if(IsKeyPressed(KEY_RIGHT))
