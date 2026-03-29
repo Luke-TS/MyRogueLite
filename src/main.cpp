@@ -316,6 +316,20 @@ int main() {
             }
         }
 
+        // enemy vs enemy
+        for (Entity e1 : ecs.enemies) {
+            for (Entity e2 : ecs.enemies) {
+                if (e1 == e2) continue;
+                Rectangle rw = collision::fromCenter(ecs.transforms[e1].position, ecs.colliders[e1].halfSize * 2.f);
+                Rectangle re = collision::fromCenter(ecs.transforms[e2].position, ecs.colliders[e2].halfSize * 2.f);
+
+                auto pen = collision::intersect(rw, re);
+                if (pen) {
+                    collisions.push_back({e1, e2, *pen});
+                }
+            }
+        }
+
         // entity vs tile detection
         for (Entity e = 0; e < ecs.capacity(); e++) {
             if (!ecs.isAlive(e))             continue;
@@ -351,6 +365,13 @@ int main() {
             if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
                 //ecs.healths[c.b].value = 0.f;
                 ecs.markForDestroy(c.b);
+                continue;
+            }
+
+            // enemy vs enemy
+            if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
+                ecs.transforms[c.a].position += c.penetration;
+                continue;
             }
         }
 
