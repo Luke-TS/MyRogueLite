@@ -4,9 +4,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
-#include <fstream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <raylib.h> // goat
@@ -25,55 +25,19 @@
 // checking intersections and such
 #include "collision_logic.hpp"
 
+// tile system
+#include "tilemap.hpp"
+
 constexpr int fps = 120;
 constexpr float playerSpeed = 350.f;
 constexpr float enemySpeed = 150.f;
 constexpr int screenWidth = 1200;
 constexpr int screenHeight = 800;
+constexpr auto tileSize = 500.f;
 
 // reads WASD input and returns
 // normalized direction vector
 Vector2 GetWASDMovement();
-
-struct Tile {
-    int spriteIndex; // for rendering
-    bool solid;
-};
-struct TileMap {
-    int width, height;
-    float tileSize;
-
-    std::vector<Tile> tiles;
-};
-inline Tile* getTile(TileMap& map, int x, int y) {
-    if (x < 0 || x >= map.width)  return nullptr;
-    if (y < 0 || y >= map.height) return nullptr;
-    return &map.tiles[y * map.width + x];
-}
-std::vector<Rectangle> getNearbySolidTiles(const TileMap& map, Vector2 pos) {
-    std::vector<Rectangle> result;
-
-    int tx = int(pos.x / map.tileSize);
-    int ty = int(pos.y / map.tileSize);
-
-    for (int y = ty - 1; y <= ty + 1; y++) {
-        for (int x = tx - 1; x <= tx + 1; x++) {
-            const Tile* t = getTile(const_cast<TileMap&>(map), x, y);
-
-            if (t && t->solid) {
-                result.push_back(Rectangle{
-                    x * map.tileSize,
-                    y * map.tileSize,
-                    map.tileSize,
-                    map.tileSize
-                });
-            }
-        }
-    }
-
-    return result;
-}
-
 
 int main() {
     srand(time(NULL));
@@ -83,28 +47,7 @@ int main() {
 
     const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
 
-    TileMap map;
-    map.tileSize = 500.f;
-
-    std::ifstream file("../src/map.txt");
-    file >> map.width >> map.height;
-    for(int i = 0; i < map.height; i++) {
-        for(int j = 0; j < map.width; j++) {
-            bool isTile;
-            file >> isTile;
-            if (isTile) {
-                map.tiles.push_back({
-                    .spriteIndex = DungeonTileSet::randomFloorTileIdx(),
-                    .solid = false
-                });
-            } else {
-                map.tiles.push_back({
-                    .spriteIndex = 0, // or unused
-                    .solid = true
-                });
-            }
-        }
-    }
+    TileMap map = loadTileMap(std::string(LEVELS_DIR)+"/asdf.txt", tileSize);
 
     Vector2 tileCenter = {
         map.width * map.tileSize / 2.f,

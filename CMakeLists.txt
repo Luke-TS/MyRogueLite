@@ -17,4 +17,5 @@ endif()
 
 target_compile_definitions(MyRogueLite PRIVATE 
     ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
+    LEVELS_DIR="${CMAKE_SOURCE_DIR}/levels"
 )
