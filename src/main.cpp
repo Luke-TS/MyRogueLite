@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -83,7 +84,7 @@ int main() {
     const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
 
     TileMap map;
-    map.tileSize = 600.f;
+    map.tileSize = 500.f;
 
     std::ifstream file("../src/map.txt");
     file >> map.width >> map.height;
@@ -168,18 +169,12 @@ int main() {
 
     // derived data - cleared each frame
 
-    struct Collision {
+    struct CollisionEvent {
         Entity a;
         Entity b;
         Vector2 penetration; // a into b
     };
-    std::vector<Collision> collisions;
-
-    // populated from tag components each frame
-    // inefficient, but good enough for now
-    std::vector<Entity> playerEntities;
-    std::vector<Entity> weaponEntities;
-    std::vector<Entity> enemyEntities;
+    std::vector<CollisionEvent> collisions;
 
     // main loop
 
@@ -194,6 +189,7 @@ int main() {
             debugMode = 1 - debugMode;
         }
 
+        // spawn enemy on cursor using mb_left or key_r
         if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_R)) {
             const auto mouseScreen = GetMousePosition();
             const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
@@ -209,17 +205,13 @@ int main() {
             };
         }
 
+        // teleport player to cursor using key_t
         if(IsKeyPressed(KEY_T)) {
             const auto mouseScreen = GetMousePosition();
             const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
             assert(ecs.isAlive(player));
             ecs.transforms[player].position = mouseWorld;
         }
-
-        if(IsKeyPressed(KEY_LEFT))
-            ecs.sprites[player].src.x -= DungeonTileSet::gridSquareSize;
-        if(IsKeyPressed(KEY_RIGHT))
-            ecs.sprites[player].src.x += DungeonTileSet::gridSquareSize;
 
         // Camera zoom controls
         // Uses log scaling to provide consistent zoom speed
@@ -229,8 +221,7 @@ int main() {
         if(IsKeyPressed(KEY_O))
             camera.zoom -= 0.2f;
 
-        if (camera.zoom > 4.0f) camera.zoom = 4.0f;
-        else if (camera.zoom < 0.1f) camera.zoom = 0.1f;
+        camera.zoom = std::clamp(camera.zoom, 0.1f, 4.f);
 
         // IMPORTANT: rebuils cached views
         ecs.rebuildViews();
@@ -316,7 +307,7 @@ int main() {
             }
         }
 
-        // enemy vs enemy
+        // enemy vs enemy detection
         for (Entity e1 : ecs.enemies) {
             for (Entity e2 : ecs.enemies) {
                 if (e1 == e2) continue;
@@ -370,7 +361,8 @@ int main() {
 
             // enemy vs enemy
             if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
-                ecs.transforms[c.a].position += c.penetration;
+                ecs.transforms[c.a].position += c.penetration / 2.f;
+                ecs.transforms[c.b].position -= c.penetration / 2.f;
                 continue;
             }
         }
@@ -383,8 +375,7 @@ int main() {
 
             BeginMode2D(camera);
             {
-                // draw tile first
-                //DrawTexturePro(tilesetTexture, tileSprite, tile, {0.f, 0.f}, 0.f, WHITE);
+                // draw map
                 for (int y = 0; y < map.height; y++) {
                     for (int x = 0; x < map.width; x++) {
                         auto tile = getTile(map, x, y);
@@ -397,7 +388,13 @@ int main() {
                             map.tileSize
                         };
 
-                        DrawTexturePro(dungeonTextureSet, DungeonTileSet::getFloorTile(tile->spriteIndex), dest, {0,0}, 0, WHITE);
+                        DrawTexturePro(
+                            dungeonTextureSet,
+                            DungeonTileSet::getFloorTile(tile->spriteIndex),
+                            dest, 
+                            {0,0}, 
+                            0,
+                            WHITE);
                     }
                 }
 
