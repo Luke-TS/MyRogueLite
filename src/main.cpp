@@ -45,16 +45,25 @@ constexpr auto degreesPerRotation = 360;
 // normalized direction vector
 Vector2 GetWASDMovement();
 
+// systems.hpp
+void systemWASD(ECS& ecs);
+void systemEnemyAI(ECS& ecs, Entity player);
+void systemIntegration(ECS& ecs, float dt);
+void systemOrbit(ECS& ecs, float dt);
+//void systemCollisionDetect(ECS& ecs, TileMap& map, std::vector<CollisionEvent>& out);
+//void systemCollisionResolve(ECS& ecs, std::vector<CollisionEvent>& collisions);
+void systemRender(ECS& ecs, const Texture2D& tex, bool debug);
+
 int main() {
     srand(time(NULL));
 
     // screen setup
     InitWindow(screenWidth, screenHeight, "MyRogueLite");
 
-    const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
+    Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
 
     //TileMap map = loadTileMap(std::string(LEVELS_DIR)+"/asdf.txt", tileSize);
-    TileMap map = createMap(tileSize, {5, 5});
+    TileMap map = createMap(tileSize, {2, 2});
 
     Vector2 tileCenter = {
         map.width * map.tileSize / 2.f,
@@ -163,7 +172,7 @@ int main() {
         }
 
         // fire arrow in direction of mouse
-        if(frame_count % (fps / 4) == 0) { // fire 4 arrows per second
+        if(frame_count % (fps / 20) == 0) { // fire 4 arrows per second
             const auto mouseScreen = GetMousePosition();
             const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
             const auto projDir = normalize(mouseWorld - ecs.transforms[player].position);
@@ -217,69 +226,18 @@ int main() {
         // INTENT SYSTEMS
 
         // WASD
-        Vector2 moveDir = GetWASDMovement();
-        for (const auto& p : ecs.players) 
-        {
-            if (moveDir.x < -0.1f) ecs.directions[p].value = -1;
-            if (moveDir.x > +0.1f) ecs.directions[p].value = 1;
-
-            ecs.velocities[p].value = moveDir * playerSpeed;
-        }
+        systemWASD(ecs);
 
         // enemy AI movement system
-        for(const auto& e : ecs.enemies) 
-        {
-            if(ecs.healths[e].value == 0) { // dead enemy
-                ecs.velocities[e].value = {0.f, 0.f};
-                continue;
-            }
-
-            // TODO: remove hard-coded playerID
-            Vector2 dir = normalize(ecs.transforms[player].position - ecs.transforms[e].position);
-
-            ecs.velocities[e].value = dir * enemySpeed;
-
-            if( dir.x < 0) ecs.directions[e].value = -1;
-            else           ecs.directions[e].value = 1;
-        }
+        systemEnemyAI(ecs, player);
 
         // INTEGRATION
 
         // updates transformation
-        for (Entity e = 0; e < ecs.capacity(); e++) 
-        {
-            if (!ecs.isAlive(e)) continue;
-            if (ecs.hasOrbit[e]) continue; // orbit system owns these
-            auto& eTran = ecs.transforms[e];
-            eTran.position += ecs.velocities[e].value * deltaTime;
-            eTran.angleD += eTran.rotationSpeedD * deltaTime;
-        }
+        systemIntegration(ecs, deltaTime);
 
         // orbit system
-        for (Entity e = 0; e < ecs.capacity(); e++)
-        {
-            if (!ecs.isAlive(e))  continue; // skip
-            if (!ecs.hasOrbit[e]) continue; // skip
-
-            OrbitComp& o = ecs.orbits[e];
-
-            // update angle
-            o.angleD += deltaTime * o.rotateRate * degreesPerRotation;
-
-            // get target position
-            if(!ecs.isAlive(o.target)) continue; // target entity invalid
-            Vector2 center = ecs.transforms[o.target].position;
-
-            // compute offset
-            Vector2 offset = {
-                static_cast<float>(std::cos(o.angleD * degreesToRadians) * o.radius),
-                static_cast<float>(std::sin(o.angleD * degreesToRadians) * o.radius),
-            };
-
-            // set entity position
-            ecs.transforms[e].position = center + offset;
-            ecs.transforms[e].angleD += ecs.transforms[e].rotationSpeedD * deltaTime;
-        }
+        systemOrbit(ecs, deltaTime);
 
         // collision detection
 
@@ -413,51 +371,7 @@ int main() {
                 }
 
                 // render system
-                for (Entity e = 0; e < ecs.capacity(); e++) 
-                {
-                    if(!ecs.isAlive(e)) continue;
-                    Rectangle src = ecs.sprites[e].src; // copy
-
-                    // apply horizontal mirror based off direction
-                    src.width *= ecs.directions[e].value;
-
-                    Vector2 renderSize = {
-                        .x = ecs.sprites[e].src.width * ecs.sprites[e].scale,
-                        .y = ecs.sprites[e].src.height * ecs.sprites[e].scale,
-                    };
-                    Rectangle destRec = {
-                        ecs.transforms[e].position.x,
-                        ecs.transforms[e].position.y,
-                        renderSize.x,
-                        renderSize.y,
-                    };
-                    Vector2 origin = {
-                        destRec.width / 2.f,
-                        destRec.height / 2.f,
-                    };
-                    DrawTexturePro(
-                        dungeonTextureSet,
-                        src,
-                        destRec,
-                        origin,
-                        ecs.transforms[e].angleD,
-                        WHITE
-                    );
-
-                    // DEBUG: draw bounding box
-                    
-                    if(!debugMode) continue;
-
-                    Rectangle debugRect = {
-                        ecs.transforms[e].position.x - renderSize.x / 2.f,
-                        ecs.transforms[e].position.y - renderSize.y / 2.f,
-                        renderSize.x,
-                        renderSize.y
-                    };
-
-                    DrawRectangleLinesEx(debugRect, 2.0f, GREEN);
-                    DrawCircleV(ecs.transforms[e].position, 3.0f, RED);
-                }
+                systemRender(ecs, dungeonTextureSet, debugMode);
             }
             EndMode2D();
         }
@@ -483,4 +397,119 @@ Vector2 GetWASDMovement() {
         result.y += 1;
 
     return normalize(result);
+}
+
+
+void systemWASD(ECS& ecs) {
+    Vector2 moveDir = GetWASDMovement();
+    for (const auto& p : ecs.players) 
+    {
+        if (moveDir.x < -0.1f) ecs.directions[p].value = -1;
+        if (moveDir.x > +0.1f) ecs.directions[p].value = 1;
+
+        ecs.velocities[p].value = moveDir * playerSpeed;
+    }
+}
+
+void systemEnemyAI(ECS& ecs, Entity player) {
+
+    for(const auto& e : ecs.enemies) 
+    {
+        if(ecs.healths[e].value == 0) { // dead enemy
+            ecs.velocities[e].value = {0.f, 0.f};
+            continue;
+        }
+
+        // TODO: remove hard-coded playerID
+        Vector2 dir = normalize(ecs.transforms[player].position - ecs.transforms[e].position);
+
+        ecs.velocities[e].value = dir * enemySpeed;
+
+        if( dir.x < 0) ecs.directions[e].value = -1;
+        else           ecs.directions[e].value = 1;
+    }
+}
+void systemIntegration(ECS& ecs, float dt) {
+
+    for (Entity e = 0; e < ecs.capacity(); e++) 
+    {
+        if (!ecs.isAlive(e)) continue;
+        if (ecs.hasOrbit[e]) continue; // orbit system owns these
+        auto& eTran = ecs.transforms[e];
+        eTran.position += ecs.velocities[e].value * dt;
+        eTran.angleD += eTran.rotationSpeedD * dt;
+    }
+}
+void systemOrbit(ECS& ecs, float dt) {
+    for (Entity e = 0; e < ecs.capacity(); e++)
+    {
+        if (!ecs.isAlive(e))  continue; // skip
+        if (!ecs.hasOrbit[e]) continue; // skip
+
+        OrbitComp& o = ecs.orbits[e];
+
+        // update angle
+        o.angleD += dt * o.rotateRate * degreesPerRotation;
+
+        // get target position
+        if(!ecs.isAlive(o.target)) continue; // target entity invalid
+        Vector2 center = ecs.transforms[o.target].position;
+
+        // compute offset
+        Vector2 offset = {
+            static_cast<float>(std::cos(o.angleD * degreesToRadians) * o.radius),
+            static_cast<float>(std::sin(o.angleD * degreesToRadians) * o.radius),
+        };
+
+        // set entity position
+        ecs.transforms[e].position = center + offset;
+        ecs.transforms[e].angleD += ecs.transforms[e].rotationSpeedD * dt;
+    }
+}
+void systemRender(ECS& ecs, const Texture2D& tex, bool debug) {
+    for (Entity e = 0; e < ecs.capacity(); e++) 
+    {
+        if(!ecs.isAlive(e)) continue;
+        Rectangle src = ecs.sprites[e].src; // copy
+
+        // apply horizontal mirror based off direction
+        src.width *= ecs.directions[e].value;
+
+        Vector2 renderSize = {
+            .x = ecs.sprites[e].src.width * ecs.sprites[e].scale,
+            .y = ecs.sprites[e].src.height * ecs.sprites[e].scale,
+        };
+        Rectangle destRec = {
+            ecs.transforms[e].position.x,
+            ecs.transforms[e].position.y,
+            renderSize.x,
+            renderSize.y,
+        };
+        Vector2 origin = {
+            destRec.width / 2.f,
+            destRec.height / 2.f,
+        };
+        DrawTexturePro(
+            tex,
+            src,
+            destRec,
+            origin,
+            ecs.transforms[e].angleD,
+            WHITE
+        );
+
+        // DEBUG: draw bounding box
+
+        if(!debug) continue;
+
+        Rectangle debugRect = {
+            ecs.transforms[e].position.x - renderSize.x / 2.f,
+            ecs.transforms[e].position.y - renderSize.y / 2.f,
+            renderSize.x,
+            renderSize.y
+        };
+
+        DrawRectangleLinesEx(debugRect, 2.0f, GREEN);
+        DrawCircleV(ecs.transforms[e].position, 3.0f, RED);
+    }
 }
