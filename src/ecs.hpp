@@ -39,6 +39,7 @@ struct TagComp {
     bool hasContainment   = false;
     bool hasProjectile    = false;
     bool hasMouseTracking = false;
+    bool hasWallBounce    = false;
 };
 
 struct OrbitComp {

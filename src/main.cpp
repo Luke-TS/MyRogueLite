@@ -178,7 +178,8 @@ int main() {
                 .hasEnemy       = false,
                 .hasWeapon      = true,
                 .hasContainment = true,
-                .hasProjectile  = true
+                .hasProjectile  = false,
+                .hasWallBounce  = true,
             };
             ecs.sprites[arrow] = {DungeonTileSet::arrowSprite, 4.f};
             ecs.transforms[arrow] = {
@@ -339,10 +340,21 @@ int main() {
         {
             // entity vs tile
             if (c.b == -1) {
+                if (ecs.tags[c.a].hasWallBounce) {
+                    auto norm   = normalize(c.penetration); // surface normal
+                    auto vin = ecs.velocities[c.a].value;   // vector in
+                    auto rout = vin - (2.f * dot(vin, norm) * norm);
+                    ecs.velocities[c.a].value = rout;
+                    auto theta = asin((dot(vin, norm) / length(vin))) * radiansToDegrees * 2.f;
+                    ecs.transforms[c.a].angleD -= (vin.y < 0) ? -theta : theta;
+                    continue;
+                }
+
                 if (ecs.tags[c.a].hasProjectile) { // destroy projectile
                     ecs.markForDestroy(c.a);
                     continue;
                 }
+
                 if (ecs.tags[c.a].hasContainment) { // contain player
                     auto& pos = ecs.transforms[c.a].position;
                     pos += c.penetration;

@@ -54,3 +54,7 @@ inline Vector2 normalize(const Vector2& v) {
     float len = length(v);
     return len > 0 ? Vector2{v.x / len, v.y / len} : Vector2{0,0};
 }
+
+inline float dot(const Vector2& a, const Vector2& b) {
+    return a.x * b.x + a.y * b.y;
+}
