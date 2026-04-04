@@ -6,13 +6,12 @@
 #include <ctime>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include <raylib.h> // goat
 
 // custom freelist ECS for the game 
-#include "world_ECS.hpp"
+#include "ecs.hpp"
 
 // header for obaining sprites 
 // from dungeon_tileset.png
@@ -23,7 +22,7 @@
 #include "vec2_ops.hpp"
 
 // checking intersections and such
-#include "collision_logic.hpp"
+#include "physics.hpp"
 
 // tile system
 #include "tilemap.hpp"
@@ -34,6 +33,11 @@ constexpr float enemySpeed = 150.f;
 constexpr int screenWidth = 1200;
 constexpr int screenHeight = 800;
 constexpr auto tileSize = 500.f;
+
+// angle constants
+constexpr auto degreesToRadians = 3.14 / 180.f;
+constexpr auto radiansToDegrees = 1 / degreesToRadians;
+constexpr auto degreesPerRotation = 360;
 
 // reads WASD input and returns
 // normalized direction vector
@@ -173,7 +177,8 @@ int main() {
 
         // WASD
         Vector2 moveDir = GetWASDMovement();
-        for (const auto& p : ecs.players) {
+        for (const auto& p : ecs.players) 
+        {
             if (moveDir.x < -0.1f) ecs.directions[p].value = -1;
             if (moveDir.x > +0.1f) ecs.directions[p].value = 1;
 
@@ -181,7 +186,8 @@ int main() {
         }
 
         // enemy AI movement system
-        for(const auto& e : ecs.enemies) {
+        for(const auto& e : ecs.enemies) 
+        {
             if(ecs.healths[e].value == 0) { // dead enemy
                 ecs.velocities[e].value = {0.f, 0.f};
                 continue;
@@ -199,7 +205,8 @@ int main() {
         // INTEGRATION
 
         // updates transformation
-        for (Entity e = 0; e < ecs.capacity(); e++) {
+        for (Entity e = 0; e < ecs.capacity(); e++) 
+        {
             if (!ecs.isAlive(e)) continue;
             if (ecs.hasOrbit[e]) continue; // orbit system owns these
             auto& eTran = ecs.transforms[e];
@@ -208,13 +215,14 @@ int main() {
         }
 
         // orbit system
-        for (Entity e = 0; e < ecs.capacity(); e++) {
-            if (!ecs.isAlive(e))  continue;
-            if (!ecs.hasOrbit[e]) continue;
+        for (Entity e = 0; e < ecs.capacity(); e++)
+        {
+            if (!ecs.isAlive(e))  continue; // skip
+            if (!ecs.hasOrbit[e]) continue; // skip
+
             OrbitComp& o = ecs.orbits[e];
 
             // update angle
-            constexpr auto degreesPerRotation = 360;
             o.angleD += deltaTime * o.rotateRate * degreesPerRotation;
 
             // get target position
@@ -222,7 +230,6 @@ int main() {
             Vector2 center = ecs.transforms[o.target].position;
 
             // compute offset
-            constexpr auto degreesToRadians = 3.14 / 180.f;
             Vector2 offset = {
                 static_cast<float>(std::cos(o.angleD * degreesToRadians) * o.radius),
                 static_cast<float>(std::sin(o.angleD * degreesToRadians) * o.radius),
@@ -238,54 +245,58 @@ int main() {
         collisions.clear();
 
         // weapon vs enemy detection
-        for (Entity w : ecs.weapons) {
-            for (Entity e : ecs.enemies) {
-                Rectangle rw = collision::fromCenter(ecs.transforms[w].position, ecs.colliders[w].halfSize * 2.f);
-                Rectangle re = collision::fromCenter(ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f);
-
-                auto pen = collision::intersect(rw, re);
-                if (pen) {
-                    collisions.push_back({w, e, *pen});
-                }
+        for (Entity w : ecs.weapons)
+        {
+            for (Entity e : ecs.enemies)
+            {
+                auto pen = physics::intersectCentered(
+                    ecs.transforms[w].position, ecs.colliders[w].halfSize * 2.f,
+                    ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f
+                );
+                if (pen) collisions.push_back({w, e, *pen});
             }
         }
 
         // enemy vs enemy detection
-        for (Entity e1 : ecs.enemies) {
-            for (Entity e2 : ecs.enemies) {
-                if (e1 == e2) continue;
-                Rectangle rw = collision::fromCenter(ecs.transforms[e1].position, ecs.colliders[e1].halfSize * 2.f);
-                Rectangle re = collision::fromCenter(ecs.transforms[e2].position, ecs.colliders[e2].halfSize * 2.f);
+        for (Entity e1 : ecs.enemies)
+        {
+            for (Entity e2 : ecs.enemies)
+            {
+                if (e1 == e2) continue; // skip
 
-                auto pen = collision::intersect(rw, re);
-                if (pen) {
-                    collisions.push_back({e1, e2, *pen});
-                }
+                auto pen = physics::intersectCentered(
+                    ecs.transforms[e1].position, ecs.colliders[e1].halfSize * 2.f,
+                    ecs.transforms[e2].position, ecs.colliders[e2].halfSize * 2.f
+                );
+
+                if (pen) collisions.push_back({e1, e2, *pen});
             }
         }
 
         // entity vs tile detection
-        for (Entity e = 0; e < ecs.capacity(); e++) {
-            if (!ecs.isAlive(e))             continue;
-            if (!ecs.tags[e].hasContainment) continue;
+        for (Entity e = 0; e < ecs.capacity(); e++) 
+        {
+            if (!ecs.isAlive(e))             continue; // skip
+            if (!ecs.tags[e].hasContainment) continue; // skip
 
-            Rectangle entityRect = collision::fromCenter(
+            Rectangle entityRect = physics::centerToRectangle(
                 ecs.transforms[e].position,
                 ecs.colliders[e].halfSize * 2.f
             );
 
             auto tiles = getNearbySolidTiles(map, ecs.transforms[e].position);
 
-            for (auto& tileRect : tiles) {
-                if (auto pen = collision::intersect(entityRect, tileRect)) {
+            for (auto& tileRect : tiles) 
+            {
+                if (auto pen = physics::intersect(entityRect, tileRect)) {
                     collisions.push_back({e, -1, *pen}); // -1 = tile
                 }
             }
         }
 
         // collision resolution
-
-        for (auto& c : collisions) {
+        for (auto& c : collisions) 
+        {
             // entity vs tile
             if (c.b == -1) {
                 auto& pos = ecs.transforms[c.a].position;
@@ -342,7 +353,8 @@ int main() {
                 }
 
                 // render system
-                for (Entity e = 0; e < ecs.capacity(); e++) {
+                for (Entity e = 0; e < ecs.capacity(); e++) 
+                {
                     if(!ecs.isAlive(e)) continue;
                     Rectangle src = ecs.sprites[e].src; // copy
 

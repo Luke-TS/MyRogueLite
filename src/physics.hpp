@@ -4,13 +4,13 @@
 #include <optional>
 #include <algorithm>
 
-namespace collision {
+namespace physics {
 
 // ----------------------
 // Representation helpers
 // ----------------------
 
-inline Rectangle fromCenter(Vector2 center, Vector2 dims) {
+inline Rectangle centerToRectangle(Vector2 center, Vector2 dims) {
     return Rectangle{
         center.x - dims.x * 0.5f,
         center.y - dims.y * 0.5f,
@@ -18,7 +18,7 @@ inline Rectangle fromCenter(Vector2 center, Vector2 dims) {
     };
 }
 
-inline Vector2 center(const Rectangle& r) {
+inline Vector2 getCenter(const Rectangle& r) {
     return {
         r.x + r.width * 0.5f,
         r.y + r.height * 0.5f
@@ -38,8 +38,8 @@ inline std::optional<Vector2> intersect(const Rectangle& a, const Rectangle& b) 
     if (overlapX <= 0.0f || overlapY <= 0.0f)
         return std::nullopt;
 
-    Vector2 ac = center(a);
-    Vector2 bc = center(b);
+    Vector2 ac = getCenter(a);
+    Vector2 bc = getCenter(b);
 
     // resolve along least penetration axis
     if (overlapX < overlapY) {
@@ -85,8 +85,8 @@ inline std::optional<Vector2> intersectCentered(
     Vector2 c2, Vector2 dims2)
 {
     return intersect(
-        fromCenter(c1, dims1),
-        fromCenter(c2, dims1)
+        centerToRectangle(c1, dims1),
+        centerToRectangle(c2, dims1)
     );
 }
 
@@ -95,8 +95,28 @@ inline std::optional<Vector2> containCentered(
     Vector2 cOuter, Vector2 dOuter)
 {
     return contain(
-        fromCenter(cInner, dInner),
-        fromCenter(cOuter, dOuter)
+        centerToRectangle(cInner, dInner),
+        centerToRectangle(cOuter, dOuter)
+    );
+}
+
+inline std::optional<Vector2> intersectCentered(
+    Rectangle a,
+    Rectangle b)
+{
+    return intersect(
+        centerToRectangle({a.x, a.y}, {a.width, a.height}),
+        centerToRectangle({b.x, b.y}, {b.width, b.height})
+    );
+}
+
+inline std::optional<Vector2> containCentered(
+    Rectangle a,
+    Rectangle b)
+{
+    return contain(
+        centerToRectangle({a.x, a.y}, {a.width, a.height}),
+        centerToRectangle({b.x, b.y}, {b.width, b.height})
     );
 }
 
