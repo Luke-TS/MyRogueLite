@@ -52,7 +52,7 @@ inline const Rectangle arrowSprite = {
 };
 
 inline const Rectangle bowSprite = {
-    .x = 20 * gridSquareSize,
+    .x = 18 * gridSquareSize,
     .y = 24 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize,

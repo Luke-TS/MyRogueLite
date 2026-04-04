@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -52,7 +53,8 @@ int main() {
 
     const Texture2D dungeonTextureSet = LoadTexture(DungeonTileSet::texturePath.c_str());
 
-    TileMap map = loadTileMap(std::string(LEVELS_DIR)+"/asdf.txt", tileSize);
+    //TileMap map = loadTileMap(std::string(LEVELS_DIR)+"/asdf.txt", tileSize);
+    TileMap map = createMap(tileSize, {5, 5});
 
     Vector2 tileCenter = {
         map.width * map.tileSize / 2.f,
@@ -96,11 +98,11 @@ int main() {
     Entity weapon3 = ecs.createCopy(weapon1);
     ecs.orbits[weapon3].angleD = 240.f;
 
-    Entity bow = ecs.create();
-
-    ecs.tags[weapon1].hasWeapon = true;
-    ecs.hasOrbit[weapon1]       = true;
-    ecs.transforms[weapon1].rotationSpeedD = 720.f;
+    /*
+    Entity bow = ecs.createCopy(player);
+    ecs.sprites[bow].src = DungeonTileSet::bowSprite;
+    ecs.transforms[bow].angleD = 180.f;
+    */
 
     // default collider components
     for(Entity e = 0; e < ecs.capacity(); e++) {
@@ -132,6 +134,7 @@ int main() {
 
     // main loop
 
+    uint64_t frame_count = 0;
     SetTargetFPS(fps);
     while (!WindowShouldClose()) { // close button or ESC key
 
@@ -160,7 +163,7 @@ int main() {
         }
 
         // fire arrow in direction of mouse
-        if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        if(frame_count % (fps / 4) == 0) { // fire 4 arrows per second
             const auto mouseScreen = GetMousePosition();
             const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
             const auto projDir = normalize(mouseWorld - ecs.transforms[player].position);
@@ -449,6 +452,7 @@ int main() {
         EndDrawing();
 
         ecs.destroyPending();
+        frame_count++;
     }
 
     CloseWindow();

@@ -33,11 +33,12 @@ struct HealthComp {
 };
 
 struct TagComp {
-    bool hasPlayer      = false;
-    bool hasEnemy       = false;
-    bool hasWeapon      = false;
-    bool hasContainment = false;
-    bool hasProjectile  = false;
+    bool hasPlayer        = false;
+    bool hasEnemy         = false;
+    bool hasWeapon        = false;
+    bool hasContainment   = false;
+    bool hasProjectile    = false;
+    bool hasMouseTracking = false;
 };
 
 struct OrbitComp {

@@ -25,6 +25,18 @@ inline const Tile* getTile(const TileMap& map, int x, int y) {
     return &map.tiles[y * map.width + x];
 }
 
+inline TileMap createMap(float tileSize, const Vector2 dims) {
+    TileMap map = TileMap{
+        .width = static_cast<int>(dims.x),
+        .height = static_cast<int>(dims.y),
+        .tileSize = tileSize,
+    };
+    for(int _ = 0; _ < map.width * map.height; _++) {
+        map.tiles.push_back({DungeonTileSet::randomFloorTileIdx(), false});
+    }
+    return map;
+}
+
 inline TileMap loadTileMap(const std::string& path, float tileSize) {
     TileMap map;
     map.tileSize = tileSize;
