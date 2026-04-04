@@ -86,7 +86,7 @@ inline std::optional<Vector2> intersectCentered(
 {
     return intersect(
         centerToRectangle(c1, dims1),
-        centerToRectangle(c2, dims1)
+        centerToRectangle(c2, dims2)
     );
 }
 

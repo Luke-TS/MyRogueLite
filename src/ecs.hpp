@@ -37,6 +37,7 @@ struct TagComp {
     bool hasEnemy       = false;
     bool hasWeapon      = false;
     bool hasContainment = false;
+    bool hasProjectile  = false;
 };
 
 struct OrbitComp {

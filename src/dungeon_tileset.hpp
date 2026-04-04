@@ -44,6 +44,20 @@ inline const Rectangle axeSprite = {
     .height = 1 * gridSquareSize - 8,
 };
 
+inline const Rectangle arrowSprite = {
+    .x = 23 * gridSquareSize,
+    .y = 24 * gridSquareSize + 11,
+    .width = 1 * gridSquareSize,
+    .height = 1 * gridSquareSize - 11,
+};
+
+inline const Rectangle bowSprite = {
+    .x = 20 * gridSquareSize,
+    .y = 24 * gridSquareSize,
+    .width = 1 * gridSquareSize,
+    .height = 1 * gridSquareSize,
+};
+
 inline const Rectangle monsterStart = {
     .x = 13 * gridSquareSize,
     .y = 29 * gridSquareSize,

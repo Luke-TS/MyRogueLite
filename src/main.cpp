@@ -30,6 +30,7 @@
 constexpr int fps = 120;
 constexpr float playerSpeed = 350.f;
 constexpr float enemySpeed = 150.f;
+constexpr float arrowSpeed = 500.f;
 constexpr int screenWidth = 1200;
 constexpr int screenHeight = 800;
 constexpr auto tileSize = 500.f;
@@ -95,6 +96,12 @@ int main() {
     Entity weapon3 = ecs.createCopy(weapon1);
     ecs.orbits[weapon3].angleD = 240.f;
 
+    Entity bow = ecs.create();
+
+    ecs.tags[weapon1].hasWeapon = true;
+    ecs.hasOrbit[weapon1]       = true;
+    ecs.transforms[weapon1].rotationSpeedD = 720.f;
+
     // default collider components
     for(Entity e = 0; e < ecs.capacity(); e++) {
         ecs.colliders[e].halfSize = {
@@ -136,8 +143,8 @@ int main() {
             debugMode = 1 - debugMode;
         }
 
-        // spawn enemy on cursor using mb_left or key_r
-        if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_R)) {
+        // spawn enemy on cursor using key_r
+        if(IsKeyPressed(KEY_R)) {
             const auto mouseScreen = GetMousePosition();
             const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
             Entity enemy = ecs.create();
@@ -149,6 +156,36 @@ int main() {
             ecs.colliders[enemy].halfSize = {
                 .x = ecs.sprites[enemy].src.width*ecs.sprites[enemy].scale/2.f,
                 .y = ecs.sprites[enemy].src.height*ecs.sprites[enemy].scale/2.f,
+            };
+        }
+
+        // fire arrow in direction of mouse
+        if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            const auto mouseScreen = GetMousePosition();
+            const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+            const auto projDir = normalize(mouseWorld - ecs.transforms[player].position);
+
+            auto projAngle = 180.f; // points sprite to the right
+            projAngle += atan((projDir.y/projDir.x)) * radiansToDegrees;
+            if( projDir.x < 0) projAngle -= 180;
+
+            Entity arrow = ecs.create();
+            ecs.tags[arrow] = {
+                .hasPlayer      = false,
+                .hasEnemy       = false,
+                .hasWeapon      = true,
+                .hasContainment = true,
+                .hasProjectile  = true
+            };
+            ecs.sprites[arrow] = {DungeonTileSet::arrowSprite, 4.f};
+            ecs.transforms[arrow] = {
+                .position = ecs.transforms[player].position,
+                .angleD   = static_cast<float>(projAngle),
+            };
+            ecs.velocities[arrow].value = projDir * arrowSpeed;
+            ecs.colliders[arrow].halfSize = {
+                .x = ecs.sprites[arrow].src.width*ecs.sprites[arrow].scale/2.f,
+                .y = ecs.sprites[arrow].src.height*ecs.sprites[arrow].scale/2.f,
             };
         }
 
@@ -265,8 +302,8 @@ int main() {
                 if (e1 == e2) continue; // skip
 
                 auto pen = physics::intersectCentered(
-                    ecs.transforms[e1].position, ecs.colliders[e1].halfSize * 2.f,
-                    ecs.transforms[e2].position, ecs.colliders[e2].halfSize * 2.f
+                    ecs.transforms[e1].position, ecs.colliders[e1].halfSize,
+                    ecs.transforms[e2].position, ecs.colliders[e2].halfSize
                 );
 
                 if (pen) collisions.push_back({e1, e2, *pen});
@@ -299,22 +336,30 @@ int main() {
         {
             // entity vs tile
             if (c.b == -1) {
-                auto& pos = ecs.transforms[c.a].position;
-
-                pos += c.penetration;
-
-                continue;
+                if (ecs.tags[c.a].hasProjectile) { // destroy projectile
+                    ecs.markForDestroy(c.a);
+                    continue;
+                }
+                if (ecs.tags[c.a].hasContainment) { // contain player
+                    auto& pos = ecs.transforms[c.a].position;
+                    pos += c.penetration;
+                    continue;
+                }
+                assert(false);
             }
 
             // weapon vs enemy
             if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
                 //ecs.healths[c.b].value = 0.f;
                 ecs.markForDestroy(c.b);
+                if(ecs.tags[c.a].hasProjectile)
+                    ecs.markForDestroy(c.a);
                 continue;
             }
 
             // enemy vs enemy
             if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
+                c.penetration /= 2.f;
                 ecs.transforms[c.a].position += c.penetration / 2.f;
                 ecs.transforms[c.b].position -= c.penetration / 2.f;
                 continue;
