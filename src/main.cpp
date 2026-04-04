@@ -53,6 +53,13 @@ void systemOrbit(ECS& ecs, float dt);
 //void systemCollisionDetect(ECS& ecs, TileMap& map, std::vector<CollisionEvent>& out);
 //void systemCollisionResolve(ECS& ecs, std::vector<CollisionEvent>& collisions);
 void systemRender(ECS& ecs, const Texture2D& tex, bool debug);
+void tileMapRender(TileMap& map, const Texture2D& tex);
+
+enum class GameState { MainMenu, Playing, LevelUp, GameOver };
+bool running = true;
+GameState game = GameState::MainMenu;
+
+void renderMainMenu(int screenWidth, int screenHeight, bool& running, GameState& state);
 
 int main() {
     srand(time(NULL));
@@ -80,6 +87,7 @@ int main() {
     ecs.healths[player].value       = 100.f;
     ecs.healths[player].maxValue    = 100.f;
     ecs.sprites[player]             = {DungeonTileSet::characterStart, 4.f};
+    ecs.sprites[player].src.x      += 6 * DungeonTileSet::gridSquareSize;
 
     // spawn enemy
     Entity enemy = ecs.create();
@@ -146,239 +154,231 @@ int main() {
     uint64_t frame_count = 0;
     SetTargetFPS(fps);
     while (!WindowShouldClose()) { // close button or ESC key
+        switch(game) {
+            case GameState::Playing: {
 
-        // game logic (inputs etc)
+                // game logic (inputs etc)
 
-        float deltaTime = GetFrameTime();
+                float deltaTime = GetFrameTime();
 
-        if(IsKeyPressed(KEY_B)) {
-            debugMode = 1 - debugMode;
-        }
-
-        // spawn enemy on cursor using key_r
-        if(IsKeyPressed(KEY_R)) {
-            const auto mouseScreen = GetMousePosition();
-            const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
-            Entity enemy = ecs.create();
-            ecs.tags[enemy].hasEnemy       = true;
-            ecs.tags[enemy].hasContainment = true;
-            ecs.transforms[enemy].position = mouseWorld;
-            ecs.healths[enemy].value       = 100.f;
-            ecs.sprites[enemy]             = {DungeonTileSet::monsterStart, 4.f};
-            ecs.colliders[enemy].halfSize = {
-                .x = ecs.sprites[enemy].src.width*ecs.sprites[enemy].scale/2.f,
-                .y = ecs.sprites[enemy].src.height*ecs.sprites[enemy].scale/2.f,
-            };
-        }
-
-        // fire arrow in direction of mouse
-        if(frame_count % (fps / 20) == 0) { // fire 4 arrows per second
-            const auto mouseScreen = GetMousePosition();
-            const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
-            const auto projDir = normalize(mouseWorld - ecs.transforms[player].position);
-
-            auto projAngle = 180.f; // points sprite to the right
-            projAngle += atan((projDir.y/projDir.x)) * radiansToDegrees;
-            if( projDir.x < 0) projAngle -= 180;
-
-            Entity arrow = ecs.create();
-            ecs.tags[arrow] = {
-                .hasPlayer      = false,
-                .hasEnemy       = false,
-                .hasWeapon      = true,
-                .hasContainment = true,
-                .hasProjectile  = false,
-                .hasWallBounce  = true,
-            };
-            ecs.sprites[arrow] = {DungeonTileSet::arrowSprite, 4.f};
-            ecs.transforms[arrow] = {
-                .position = ecs.transforms[player].position,
-                .angleD   = static_cast<float>(projAngle),
-            };
-            ecs.velocities[arrow].value = projDir * arrowSpeed;
-            ecs.colliders[arrow].halfSize = {
-                .x = ecs.sprites[arrow].src.width*ecs.sprites[arrow].scale/2.f,
-                .y = ecs.sprites[arrow].src.height*ecs.sprites[arrow].scale/2.f,
-            };
-        }
-
-        // teleport player to cursor using key_t
-        if(IsKeyPressed(KEY_T)) {
-            const auto mouseScreen = GetMousePosition();
-            const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
-            assert(ecs.isAlive(player));
-            ecs.transforms[player].position = mouseWorld;
-        }
-
-        // Camera zoom controls
-        // Uses log scaling to provide consistent zoom speed
-        camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
-        if(IsKeyPressed(KEY_I))
-            camera.zoom += 0.2f;
-        if(IsKeyPressed(KEY_O))
-            camera.zoom -= 0.2f;
-
-        camera.zoom = std::clamp(camera.zoom, 0.1f, 4.f);
-
-        // IMPORTANT: rebuils cached views
-        ecs.rebuildViews();
-
-        // INTENT SYSTEMS
-
-        // WASD
-        systemWASD(ecs);
-
-        // enemy AI movement system
-        systemEnemyAI(ecs, player);
-
-        // INTEGRATION
-
-        // updates transformation
-        systemIntegration(ecs, deltaTime);
-
-        // orbit system
-        systemOrbit(ecs, deltaTime);
-
-        // collision detection
-
-        collisions.clear();
-
-        // weapon vs enemy detection
-        for (Entity w : ecs.weapons)
-        {
-            for (Entity e : ecs.enemies)
-            {
-                auto pen = physics::intersectCentered(
-                    ecs.transforms[w].position, ecs.colliders[w].halfSize * 2.f,
-                    ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f
-                );
-                if (pen) collisions.push_back({w, e, *pen});
-            }
-        }
-
-        // enemy vs enemy detection
-        for (Entity e1 : ecs.enemies)
-        {
-            for (Entity e2 : ecs.enemies)
-            {
-                if (e1 == e2) continue; // skip
-
-                auto pen = physics::intersectCentered(
-                    ecs.transforms[e1].position, ecs.colliders[e1].halfSize,
-                    ecs.transforms[e2].position, ecs.colliders[e2].halfSize
-                );
-
-                if (pen) collisions.push_back({e1, e2, *pen});
-            }
-        }
-
-        // entity vs tile detection
-        for (Entity e = 0; e < ecs.capacity(); e++) 
-        {
-            if (!ecs.isAlive(e))             continue; // skip
-            if (!ecs.tags[e].hasContainment) continue; // skip
-
-            Rectangle entityRect = physics::centerToRectangle(
-                ecs.transforms[e].position,
-                ecs.colliders[e].halfSize * 2.f
-            );
-
-            auto tiles = getNearbySolidTiles(map, ecs.transforms[e].position);
-
-            for (auto& tileRect : tiles) 
-            {
-                if (auto pen = physics::intersect(entityRect, tileRect)) {
-                    collisions.push_back({e, -1, *pen}); // -1 = tile
-                }
-            }
-        }
-
-        // collision resolution
-        for (auto& c : collisions) 
-        {
-            // entity vs tile
-            if (c.b == -1) {
-                if (ecs.tags[c.a].hasWallBounce) {
-                    auto norm   = normalize(c.penetration); // surface normal
-                    auto vin = ecs.velocities[c.a].value;   // vector in
-                    auto rout = vin - (2.f * dot(vin, norm) * norm);
-                    ecs.velocities[c.a].value = rout;
-                    auto theta = asin((dot(vin, norm) / length(vin))) * radiansToDegrees * 2.f;
-                    ecs.transforms[c.a].angleD -= (vin.y < 0) ? -theta : theta;
-                    continue;
+                if(IsKeyPressed(KEY_B)) {
+                    debugMode = 1 - debugMode;
                 }
 
-                if (ecs.tags[c.a].hasProjectile) { // destroy projectile
-                    ecs.markForDestroy(c.a);
-                    continue;
+                // spawn enemy on cursor using key_r
+                if(IsKeyPressed(KEY_R)) {
+                    const auto mouseScreen = GetMousePosition();
+                    const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+                    Entity enemy = ecs.create();
+                    ecs.tags[enemy].hasEnemy       = true;
+                    ecs.tags[enemy].hasContainment = true;
+                    ecs.transforms[enemy].position = mouseWorld;
+                    ecs.healths[enemy].value       = 100.f;
+                    ecs.sprites[enemy]             = {DungeonTileSet::monsterStart, 4.f};
+                    ecs.colliders[enemy].halfSize = {
+                        .x = ecs.sprites[enemy].src.width*ecs.sprites[enemy].scale/2.f,
+                        .y = ecs.sprites[enemy].src.height*ecs.sprites[enemy].scale/2.f,
+                    };
                 }
 
-                if (ecs.tags[c.a].hasContainment) { // contain player
-                    auto& pos = ecs.transforms[c.a].position;
-                    pos += c.penetration;
-                    continue;
+                // fire arrow in direction of mouse
+                if(frame_count % (fps / 4) == 0) { // fire 4 arrows per second
+                    const auto mouseScreen = GetMousePosition();
+                    const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+                    const auto projDir = normalize(mouseWorld - ecs.transforms[player].position);
+
+                    auto projAngle = 180.f; // points sprite to the right
+                    projAngle += atan((projDir.y/projDir.x)) * radiansToDegrees;
+                    if( projDir.x < 0) projAngle -= 180;
+
+                    Entity arrow = ecs.create();
+                    ecs.tags[arrow] = {
+                        .hasPlayer      = false,
+                        .hasEnemy       = false,
+                        .hasWeapon      = true,
+                        .hasContainment = true,
+                        .hasProjectile  = false,
+                        .hasWallBounce  = true,
+                    };
+                    ecs.sprites[arrow] = {DungeonTileSet::arrowSprite, 4.f};
+                    ecs.transforms[arrow] = {
+                        .position = ecs.transforms[player].position,
+                        .angleD   = static_cast<float>(projAngle),
+                    };
+                    ecs.velocities[arrow].value = projDir * arrowSpeed;
+                    ecs.colliders[arrow].halfSize = {
+                        .x = ecs.sprites[arrow].src.width*ecs.sprites[arrow].scale/2.f,
+                        .y = ecs.sprites[arrow].src.height*ecs.sprites[arrow].scale/2.f,
+                    };
                 }
-                assert(false);
-            }
 
-            // weapon vs enemy
-            if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
-                //ecs.healths[c.b].value = 0.f;
-                ecs.markForDestroy(c.b);
-                if(ecs.tags[c.a].hasProjectile)
-                    ecs.markForDestroy(c.a);
-                continue;
-            }
+                // teleport player to cursor using key_t
+                if(IsKeyPressed(KEY_T)) {
+                    const auto mouseScreen = GetMousePosition();
+                    const auto mouseWorld = GetScreenToWorld2D(mouseScreen, camera);
+                    assert(ecs.isAlive(player));
+                    ecs.transforms[player].position = mouseWorld;
+                }
 
-            // enemy vs enemy
-            if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
-                c.penetration /= 2.f;
-                ecs.transforms[c.a].position += c.penetration / 2.f;
-                ecs.transforms[c.b].position -= c.penetration / 2.f;
-                continue;
-            }
-        }
+                // Camera zoom controls
+                // Uses log scaling to provide consistent zoom speed
+                camera.zoom = expf(logf(camera.zoom) + ((float)GetMouseWheelMove()*0.1f));
+                if(IsKeyPressed(KEY_I))
+                    camera.zoom += 0.2f;
+                if(IsKeyPressed(KEY_O))
+                    camera.zoom -= 0.2f;
 
-        // update camera target
-        camera.target = ecs.transforms[player].position;
-        BeginDrawing();
-        {
-            ClearBackground(BLACK);
+                camera.zoom = std::clamp(camera.zoom, 0.1f, 4.f);
 
-            BeginMode2D(camera);
-            {
-                // draw map
-                for (int y = 0; y < map.height; y++) {
-                    for (int x = 0; x < map.width; x++) {
-                        auto tile = getTile(map, x, y);
-                        if (!tile || tile->solid) continue;
+                // IMPORTANT: rebuils cached views
+                ecs.rebuildViews();
 
-                        Rectangle dest = {
-                            x * map.tileSize,
-                            y * map.tileSize,
-                            map.tileSize,
-                            map.tileSize
-                        };
+                // INTENT SYSTEMS
 
-                        DrawTexturePro(
-                            dungeonTextureSet,
-                            DungeonTileSet::getFloorTile(tile->spriteIndex),
-                            dest, 
-                            {0,0}, 
-                            0,
-                            WHITE);
+                // WASD
+                systemWASD(ecs);
+
+                // enemy AI movement system
+                systemEnemyAI(ecs, player);
+
+                // INTEGRATION
+
+                // updates transformation
+                systemIntegration(ecs, deltaTime);
+
+                // orbit system
+                systemOrbit(ecs, deltaTime);
+
+                // collision detection
+
+                collisions.clear();
+
+                // weapon vs enemy detection
+                for (Entity w : ecs.weapons)
+                {
+                    for (Entity e : ecs.enemies)
+                    {
+                        auto pen = physics::intersectCentered(
+                            ecs.transforms[w].position, ecs.colliders[w].halfSize * 2.f,
+                            ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f
+                        );
+                        if (pen) collisions.push_back({w, e, *pen});
                     }
                 }
 
-                // render system
-                systemRender(ecs, dungeonTextureSet, debugMode);
-            }
-            EndMode2D();
-        }
-        EndDrawing();
+                // enemy vs enemy detection
+                for (Entity e1 : ecs.enemies)
+                {
+                    for (Entity e2 : ecs.enemies)
+                    {
+                        if (e1 == e2) continue; // skip
 
-        ecs.destroyPending();
-        frame_count++;
+                        auto pen = physics::intersectCentered(
+                            ecs.transforms[e1].position, ecs.colliders[e1].halfSize,
+                            ecs.transforms[e2].position, ecs.colliders[e2].halfSize
+                        );
+
+                        if (pen) collisions.push_back({e1, e2, *pen});
+                    }
+                }
+
+                // entity vs tile detection
+                for (Entity e = 0; e < ecs.capacity(); e++) 
+                {
+                    if (!ecs.isAlive(e))             continue; // skip
+                    if (!ecs.tags[e].hasContainment) continue; // skip
+
+                    Rectangle entityRect = physics::centerToRectangle(
+                        ecs.transforms[e].position,
+                        ecs.colliders[e].halfSize * 2.f
+                    );
+
+                    auto tiles = getNearbySolidTiles(map, ecs.transforms[e].position);
+
+                    for (auto& tileRect : tiles) 
+                    {
+                        if (auto pen = physics::intersect(entityRect, tileRect)) {
+                            collisions.push_back({e, -1, *pen}); // -1 = tile
+                        }
+                    }
+                }
+
+                // collision resolution
+                for (auto& c : collisions) 
+                {
+                    // entity vs tile
+                    if (c.b == -1) {
+                        if (ecs.tags[c.a].hasWallBounce) {
+                            auto norm   = normalize(c.penetration); // surface normal
+                            auto vin = ecs.velocities[c.a].value;   // vector in
+                            auto rout = vin - (2.f * dot(vin, norm) * norm);
+                            ecs.velocities[c.a].value = rout;
+                            auto theta = asin((dot(vin, norm) / length(vin))) * radiansToDegrees * 2.f;
+                            ecs.transforms[c.a].angleD -= (vin.y < 0) ? -theta : theta;
+                            continue;
+                        }
+
+                        if (ecs.tags[c.a].hasProjectile) { // destroy projectile
+                            ecs.markForDestroy(c.a);
+                            continue;
+                        }
+
+                        if (ecs.tags[c.a].hasContainment) { // contain player
+                            auto& pos = ecs.transforms[c.a].position;
+                            pos += c.penetration;
+                            continue;
+                        }
+                        assert(false);
+                    }
+
+                    // weapon vs enemy
+                    if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
+                        //ecs.healths[c.b].value = 0.f;
+                        ecs.markForDestroy(c.b);
+                        if(ecs.tags[c.a].hasProjectile)
+                            ecs.markForDestroy(c.a);
+                        continue;
+                    }
+
+                    // enemy vs enemy
+                    if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
+                        c.penetration /= 2.f;
+                        ecs.transforms[c.a].position += c.penetration / 2.f;
+                        ecs.transforms[c.b].position -= c.penetration / 2.f;
+                        continue;
+                    }
+                }
+
+                // update camera target
+                camera.target = ecs.transforms[player].position;
+                BeginDrawing();
+                {
+                    ClearBackground(BLACK);
+
+                    BeginMode2D(camera);
+                    {
+                        // draw map
+                        tileMapRender(map, dungeonTextureSet);
+
+                        // render system
+                        systemRender(ecs, dungeonTextureSet, debugMode);
+                    }
+                    EndMode2D();
+                }
+                EndDrawing();
+
+                ecs.destroyPending();
+                frame_count++;
+                break;
+            }
+            case GameState::LevelUp:
+                break;
+            case GameState::MainMenu:
+                renderMainMenu(screenWidth, screenHeight, running, game); 
+                break;
+            case GameState::GameOver:
+                break;
+        }
     }
 
     CloseWindow();
@@ -512,4 +512,68 @@ void systemRender(ECS& ecs, const Texture2D& tex, bool debug) {
         DrawRectangleLinesEx(debugRect, 2.0f, GREEN);
         DrawCircleV(ecs.transforms[e].position, 3.0f, RED);
     }
+}
+
+void tileMapRender(TileMap& map, const Texture2D& tex) {
+    for (int y = 0; y < map.height; y++) {
+        for (int x = 0; x < map.width; x++) {
+            auto tile = getTile(map, x, y);
+            if (!tile || tile->solid) continue;
+
+            Rectangle dest = {
+                x * map.tileSize,
+                y * map.tileSize,
+                map.tileSize,
+                map.tileSize
+            };
+
+            DrawTexturePro(
+                tex,
+                DungeonTileSet::getFloorTile(tile->spriteIndex),
+                dest, 
+                {0,0}, 
+                0,
+                WHITE);
+        }
+    }
+}
+
+void renderMainMenu(int screenWidth, int screenHeight, bool& running, GameState& state) {
+
+    const char* title    = "Delve";
+    const char* subtitle = "created with raylib";
+    const char* prompt   = "Press ENTER to Play";
+    const char* quit     = "Press ESC to Quit";
+
+    BeginDrawing();
+    {
+        ClearBackground(BLACK);
+
+        DrawText(title,
+            screenWidth/2 - MeasureText(title, 80)/2,
+            screenHeight/4,
+            80, RED);
+
+        DrawText(subtitle,
+            screenWidth/2 - MeasureText(subtitle, 24)/2,
+            screenHeight/4 + 90,
+            24, RAYWHITE);
+
+        // pulsing prompt using sine wave on alpha
+        float alpha = (sinf(GetTime() * 3.f) + 1.f) / 2.f; // 0.0 to 1.0
+        Color promptColor = Fade(RAYWHITE, alpha);
+        DrawText(prompt,
+            screenWidth/2 - MeasureText(prompt, 32)/2,
+            screenHeight/2 + 40,
+            32, promptColor);
+
+        DrawText(quit,
+            screenWidth/2 - MeasureText(quit, 20)/2,
+            screenHeight - 60,
+            20, DARKGRAY);
+    }
+    EndDrawing();
+
+    if (IsKeyPressed(KEY_ENTER))  state   = GameState::Playing;
+    if (IsKeyPressed(KEY_ESCAPE)) running = false;
 }
