@@ -1,0 +1,259 @@
+#pragma once
+
+#include "core/dungeon_tileset.hpp"
+#include "core/tilemap.hpp"
+
+#include "defs.hpp"
+#include "systems.hpp"
+#include "spawner.hpp"
+
+#include <raylib.h>
+
+constexpr float playerSpeed = 350.f;
+constexpr float enemySpeed  = 150.f;
+constexpr float arrowSpeed  = 500.f;
+constexpr int   screenWidth  = 1200;
+constexpr int   screenHeight = 800;
+constexpr float tileSize     = 500.f;
+
+// -----------------------------------------------
+// INIT
+// -----------------------------------------------
+
+inline void initGame(GameContext& ctx) {
+    InitWindow(screenWidth, screenHeight, "Delve");
+    SetTargetFPS(120);
+
+    ctx.tileTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
+    ctx.map         = loadTileMap(std::string(LEVELS_DIR)+"/map.txt", 500.f);
+
+    Vector2 tileCenter = {
+        ctx.map.width  * ctx.map.tileSize / 2.f,
+        ctx.map.height * ctx.map.tileSize / 2.f,
+    };
+
+    // camera
+    ctx.camera.offset   = {screenWidth / 2.f, screenHeight / 2.f};
+    ctx.camera.rotation = 0.f;
+    ctx.camera.zoom     = 1.f;
+
+    // player
+    ctx.player = ctx.ecs.create();
+    auto& ecs  = ctx.ecs;
+
+    ecs.tags[ctx.player].hasPlayer      = true;
+    ecs.tags[ctx.player].hasContainment = true;
+    ecs.transforms[ctx.player].position = tileCenter;
+    ecs.healths[ctx.player].value       = 100.f;
+    ecs.healths[ctx.player].maxValue    = 100.f;
+    ecs.sprites[ctx.player]             = {DungeonTileSet::characterStart, 4.f};
+
+    // starting weapons from defs
+    spawnWeaponForPlayer(ctx, WEAPON_DEFS[WEAPON_AXE],   ctx.player, 0.f);
+    spawnWeaponForPlayer(ctx, WEAPON_DEFS[WEAPON_AXE],   ctx.player, 120.f);
+    spawnWeaponForPlayer(ctx, WEAPON_DEFS[WEAPON_AXE],   ctx.player, 240.f);
+
+    // set up all colliders
+    for (Entity e = 0; e < ecs.capacity(); e++) {
+        ecs.colliders[e].halfSize = {
+            ecs.sprites[e].src.width  * ecs.sprites[e].scale / 2.f,
+            ecs.sprites[e].src.height * ecs.sprites[e].scale / 2.f,
+        };
+    }
+}
+
+// -----------------------------------------------
+// MAIN MENU
+// -----------------------------------------------
+
+inline void updateMainMenu(GameContext& ctx) {
+    if (IsKeyPressed(KEY_ENTER))
+        ctx.state = GameState::Playing;
+
+    const char* title    = "Delve";
+    const char* subtitle = "created with raylib";
+    const char* prompt   = "Press ENTER to Play";
+    const char* quit     = "Press ESC to Quit";
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    DrawText(title,
+        screenWidth/2 - MeasureText(title, 80)/2,
+        screenHeight/4,
+        80, RED);
+
+    DrawText(subtitle,
+        screenWidth/2 - MeasureText(subtitle, 24)/2,
+        screenHeight/4 + 90,
+        24, RAYWHITE);
+
+    float alpha = (sinf(GetTime() * 3.f) + 1.f) / 2.f;
+    DrawText(prompt,
+        screenWidth/2 - MeasureText(prompt, 32)/2,
+        screenHeight/2 + 40,
+        32, Fade(RAYWHITE, alpha));
+
+    DrawText(quit,
+        screenWidth/2 - MeasureText(quit, 20)/2,
+        screenHeight - 60,
+        20, DARKGRAY);
+
+    EndDrawing();
+}
+
+// -----------------------------------------------
+// PLAYING
+// -----------------------------------------------
+
+inline void updatePlaying(GameContext& ctx) {
+    ECS&   ecs = ctx.ecs;
+    float  dt  = GetFrameTime();
+
+    // debug toggle
+    if (IsKeyPressed(KEY_B))
+        ctx.debugMode = !ctx.debugMode;
+
+    // camera zoom
+    ctx.camera.zoom = expf(logf(ctx.camera.zoom) + GetMouseWheelMove() * 0.1f);
+    ctx.camera.zoom = std::clamp(ctx.camera.zoom, 0.1f, 4.f);
+
+    // teleport (debug)
+    if (IsKeyPressed(KEY_T)) {
+        auto mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
+        ecs.transforms[ctx.player].position = mouseWorld;
+    }
+
+    // spawn enemy on cursor (debug)
+    if (IsKeyPressed(KEY_R)) {
+        auto mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
+        spawnEnemy(ctx, ENEMY_DEFS[ZOMBIE], mouseWorld);
+    }
+
+    // rebuild cached views
+    ecs.rebuildViews();
+
+    // systems
+    systemPlayerMovement(ctx.ecs, playerSpeed);
+    systemEnemyAI(ctx.ecs);
+    systemBowFire(ctx);
+    systemSpawner(ctx);
+    systemIntegration(ctx.ecs, dt);
+    systemOrbit(ctx.ecs, dt);
+
+    // collisions
+    static std::vector<CollisionEvent> collisions;
+    collisions.clear();
+    systemCollisionDetect(ctx, collisions);
+    systemCollisionResolve(ctx, collisions);
+
+    // camera follows player
+    ctx.camera.target = ecs.transforms[ctx.player].position;
+
+    // check game over
+    if (!ecs.isAlive(ctx.player) || ecs.healths[ctx.player].value <= 0.f)
+        ctx.state = GameState::GameOver;
+
+    // rendering
+    BeginDrawing();
+    ClearBackground(BLACK);
+    BeginMode2D(ctx.camera);
+        systemRenderMap(ctx);
+        systemRenderEntities(ctx);
+    EndMode2D();
+    //systemRenderHUD(ctx);   // health bar, XP bar — drawn in screen space
+    EndDrawing();
+
+    ecs.destroyPending();
+    ctx.frameCount++;
+}
+
+// -----------------------------------------------
+// LEVEL UP
+// -----------------------------------------------
+
+inline void updateLevelUp(GameContext& ctx) {
+    // present 3 weapon upgrade choices
+    // selecting one resumes play
+
+    const char* header = "LEVEL UP";
+    const char* sub    = "Choose an upgrade:";
+
+    // hardcoded for now — hook into defs later
+    const char* options[] = {
+        "[1] Extra Axe",
+        "[2] Faster Arrows",
+        "[3] More Health",
+    };
+
+    /*
+    if (IsKeyPressed(KEY_ONE))   { applyUpgrade(ctx, 0); ctx.state = GameState::Playing; }
+    if (IsKeyPressed(KEY_TWO))   { applyUpgrade(ctx, 1); ctx.state = GameState::Playing; }
+    if (IsKeyPressed(KEY_THREE)) { applyUpgrade(ctx, 2); ctx.state = GameState::Playing; }
+    */
+
+    if (IsKeyPressed(KEY_ONE)) { ctx.state = GameState::Playing; }
+
+    BeginDrawing();
+    ClearBackground(Color{10, 10, 30, 255}); // dark blue tint to signal pause
+
+    DrawText(header,
+        screenWidth/2 - MeasureText(header, 60)/2,
+        screenHeight/5,
+        60, RED);
+
+    DrawText(sub,
+        screenWidth/2 - MeasureText(sub, 24)/2,
+        screenHeight/5 + 80,
+        24, LIGHTGRAY);
+
+    for (int i = 0; i < 3; i++) {
+        DrawText(options[i],
+            screenWidth/2 - MeasureText(options[i], 28)/2,
+            screenHeight/2 + i * 50,
+            28, WHITE);
+    }
+
+    EndDrawing();
+}
+
+// -----------------------------------------------
+// GAME OVER
+// -----------------------------------------------
+
+inline void updateGameOver(GameContext& ctx) {
+    // restart by re-running initGame
+    if (IsKeyPressed(KEY_ENTER)) {
+        ctx = GameContext{};   // reset all state
+        initGame(ctx);
+        ctx.state = GameState::Playing;
+    }
+    if (IsKeyPressed(KEY_ESCAPE))
+        ctx.state = GameState::MainMenu;
+
+    const char* header  = "YOU DIED";
+    const char* restart = "Press ENTER to Restart";
+    const char* menu    = "Press ESC for Main Menu";
+
+    float alpha = (sinf(GetTime() * 2.f) + 1.f) / 2.f;
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    DrawText(header,
+        screenWidth/2 - MeasureText(header, 80)/2,
+        screenHeight/3,
+        80, RED);
+
+    DrawText(restart,
+        screenWidth/2 - MeasureText(restart, 28)/2,
+        screenHeight/2 + 20,
+        28, Fade(RAYWHITE, alpha));
+
+    DrawText(menu,
+        screenWidth/2 - MeasureText(menu, 20)/2,
+        screenHeight/2 + 70,
+        20, DARKGRAY);
+
+    EndDrawing();
+}

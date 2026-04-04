@@ -16,56 +16,56 @@ inline std::string texturePath = std::string(ASSETS_DIR)
 // texture grid contains 16x16 squares
 inline const int gridSquareSize = 16;
 
-inline const Rectangle floorTileStart = {
+inline Rectangle floorTileStart = {
     .x = 0 * gridSquareSize,
     .y = 7 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize
 };
 
-inline const Rectangle characterStart = {
-    .x = 0 * gridSquareSize,
+inline Rectangle characterStart = {
+    .x = 7 * gridSquareSize,
     .y = 26 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 2 * gridSquareSize,
 };
 
-inline const Rectangle weaponStart = {
+inline Rectangle weaponStart = {
     .x = 8 * gridSquareSize,
     .y = 24 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize,
 };
 
-inline const Rectangle axeSprite = {
+inline Rectangle axeSprite = {
     .x = 15 * gridSquareSize,
     .y = 24 * gridSquareSize + 8,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize - 8,
 };
 
-inline const Rectangle arrowSprite = {
+inline Rectangle arrowSprite = {
     .x = 23 * gridSquareSize,
     .y = 24 * gridSquareSize + 11,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize - 11,
 };
 
-inline const Rectangle bowSprite = {
+inline Rectangle bowSprite = {
     .x = 18 * gridSquareSize,
     .y = 24 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 1 * gridSquareSize,
 };
 
-inline const Rectangle monsterStart = {
+inline Rectangle monsterStart = {
     .x = 13 * gridSquareSize,
     .y = 29 * gridSquareSize,
     .width = 1 * gridSquareSize,
     .height = 2 * gridSquareSize,
 };
 
-inline const Rectangle bonesDecor = {
+inline Rectangle bonesDecor = {
     .x = 7 * gridSquareSize,
     .y = 15* gridSquareSize,
     .width = 1 * gridSquareSize,

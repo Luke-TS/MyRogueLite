@@ -18,6 +18,10 @@ struct VelocityComp {
     Vector2 value = {0, 0};
 };
 
+struct SpeedComp { // used by systemEnemyAI
+    float value = 0.f;
+};
+
 struct ColliderComp {
     Vector2 halfSize = {0, 0};
 };
@@ -69,6 +73,7 @@ struct ECS {
             // grow all component arrays by 1
             transforms .emplace_back();
             velocities .emplace_back();
+            speeds     .emplace_back();
             colliders  .emplace_back();
             sprites    .emplace_back();
             healths    .emplace_back();
@@ -84,6 +89,7 @@ struct ECS {
         // zero out components so recycled slots are clean
         transforms [e] = {};
         velocities [e] = {};
+        speeds     [e] = {};
         colliders  [e] = {};
         sprites    [e] = {};
         healths    [e] = {};
@@ -104,6 +110,7 @@ struct ECS {
         // copy over components
         transforms [id] = transforms[e];
         velocities [id] = velocities[e];
+        speeds     [id] = speeds[e];
         colliders  [id] = colliders[e];
         sprites    [id] = sprites[e];
         healths    [id] = healths[e];
@@ -145,6 +152,7 @@ struct ECS {
     // component arrays
     std::vector<TransformComp> transforms;
     std::vector<VelocityComp>  velocities;
+    std::vector<SpeedComp>     speeds;
     std::vector<ColliderComp>  colliders;
     std::vector<SpriteComp>    sprites;
     std::vector<HealthComp>    healths;
