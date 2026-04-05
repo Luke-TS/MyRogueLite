@@ -16,16 +16,12 @@ constexpr int   screenWidth  = 1200;
 constexpr int   screenHeight = 800;
 constexpr float tileSize     = 500.f;
 
-// -----------------------------------------------
-// INIT
-// -----------------------------------------------
-
 inline void initGame(GameContext& ctx) {
     InitWindow(screenWidth, screenHeight, "Delve");
     SetTargetFPS(120);
 
     ctx.tileTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
-    ctx.map         = loadTileMap(std::string(LEVELS_DIR)+"/map.txt", 500.f);
+    ctx.map         = loadTileMap(std::string(LEVELS_DIR)+"/map.txt", tileSize);
 
     Vector2 tileCenter = {
         ctx.map.width  * ctx.map.tileSize / 2.f,
@@ -62,10 +58,6 @@ inline void initGame(GameContext& ctx) {
     }
 }
 
-// -----------------------------------------------
-// MAIN MENU
-// -----------------------------------------------
-
 inline void updateMainMenu(GameContext& ctx) {
     if (IsKeyPressed(KEY_ENTER))
         ctx.state = GameState::Playing;
@@ -101,10 +93,6 @@ inline void updateMainMenu(GameContext& ctx) {
 
     EndDrawing();
 }
-
-// -----------------------------------------------
-// PLAYING
-// -----------------------------------------------
 
 inline void updatePlaying(GameContext& ctx) {
     ECS&   ecs = ctx.ecs;
@@ -164,13 +152,16 @@ inline void updatePlaying(GameContext& ctx) {
     //systemRenderHUD(ctx);   // health bar, XP bar — drawn in screen space
     EndDrawing();
 
+    // check level up
+    if( ctx.progress.xp >= ctx.progress.xpToNext ) {
+        ctx.progress.xp = 0.f;
+        ctx.progress.xpToNext += 100.f;
+        ctx.state = GameState::LevelUp;
+    }
+
     ecs.destroyPending();
     ctx.frameCount++;
 }
-
-// -----------------------------------------------
-// LEVEL UP
-// -----------------------------------------------
 
 inline void updateLevelUp(GameContext& ctx) {
     // present 3 weapon upgrade choices
@@ -216,10 +207,6 @@ inline void updateLevelUp(GameContext& ctx) {
 
     EndDrawing();
 }
-
-// -----------------------------------------------
-// GAME OVER
-// -----------------------------------------------
 
 inline void updateGameOver(GameContext& ctx) {
     // restart by re-running initGame

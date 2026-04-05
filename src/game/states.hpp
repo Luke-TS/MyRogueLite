@@ -19,7 +19,7 @@ enum class GameState {
 // subsystem states
 struct SpawnerState {
     float timeSinceLastWave = 0.f;
-    float waveInterval      = 3.f;
+    float waveInterval      = 10.f;
     int   waveNumber        = 0;
 };
 
@@ -32,7 +32,7 @@ struct PlayerProgress {
 
     // which weapon slots the player has unlocked
     // indexed into WEAPON_DEFS
-    std::vector<int> unlockedWeapons = {0, 2}; // starts with axe + arrow
+    std::vector<int> unlockedWeapons = {0, 1}; // starts with axe + arrow
 };
 
 // central game context

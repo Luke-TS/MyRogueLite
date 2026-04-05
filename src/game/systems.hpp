@@ -237,6 +237,8 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
             ecs.markForDestroy(c.b);
             if(ecs.tags[c.a].hasProjectile)
                 ecs.markForDestroy(c.a);
+            
+            ctx.progress.xp += 1.f;
             continue;
         }
 
