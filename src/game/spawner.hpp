@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/tilemap.hpp"
 #include "defs.hpp"
 #include "game/states.hpp"
 
@@ -15,6 +16,15 @@ static Vector2 randomPointOnCircle(Vector2 center, float radius) {
     return {
         center.x + cosf(angle) * radius,
         center.y + sinf(angle) * radius,
+    };
+}
+
+// returns a random point on a circle around a center
+// used to spawn enemies just off screen
+static Vector2 randomPointOnRectangle(Vector2 center, Rectangle rec) {
+    return {
+        rec.x + (rand() % (int)rec.width),
+        rec.y + (rand() & (int)rec.height),
     };
 }
 
@@ -142,9 +152,12 @@ inline void systemSpawner(GameContext& ctx) {
     Vector2 playerPos = ctx.ecs.transforms[ctx.playerID].position;
     int     poolSize  = enemyPoolForWave(s.waveNumber);
 
+    const auto nearTiles = getNearbyMapTiles(ctx.map, ctx.ecs.transforms[ctx.playerID].position);
+    const auto numTiles  = nearTiles.size();
     for (int i = 0; i < count; i++) {
-        int     defIndex = rand() % (poolSize + 1);
-        Vector2 pos      = randomPointOnCircle(playerPos, spawnRadius);
+        int     defIndex  = rand() % (poolSize + 1);
+        int     tileIndex = rand() % (numTiles);
+        Vector2 pos       = randomPointOnRectangle(playerPos, nearTiles[tileIndex]);
         spawnEnemy(ctx, Defs::enemies[defIndex], pos);
     }
 }

@@ -72,6 +72,30 @@ inline TileMap loadTileMap(const std::string& path, float tileSize) {
     return map;
 }
 
+inline std::vector<Rectangle> getNearbyMapTiles(const TileMap& map, Vector2 pos) {
+    std::vector<Rectangle> result;
+
+    int tx = int(pos.x / map.tileSize);
+    int ty = int(pos.y / map.tileSize);
+
+    for (int y = ty - 1; y <= ty + 1; y++) {
+        for (int x = tx - 1; x <= tx + 1; x++) {
+            const Tile* t = getTile(map, x, y);
+            bool outOfBounds = (t == nullptr);
+            if (!(outOfBounds || t->solid)) {
+                result.push_back(Rectangle{
+                    x * map.tileSize,
+                    y * map.tileSize,
+                    map.tileSize,
+                    map.tileSize
+                });
+            }
+        }
+    }
+
+    return result;
+}
+
 inline std::vector<Rectangle> getNearbySolidTiles(const TileMap& map, Vector2 pos) {
     std::vector<Rectangle> result;
 
