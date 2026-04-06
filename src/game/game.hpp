@@ -12,13 +12,16 @@
 constexpr float playerSpeed = 350.f;
 constexpr float enemySpeed  = 150.f;
 constexpr float arrowSpeed  = 500.f;
-constexpr int   screenWidth  = 1200;
-constexpr int   screenHeight = 800;
+constexpr int   screenWidth  = 1500;
+constexpr int   screenHeight = 1000;
 constexpr float tileSize     = 500.f;
 
 inline void initGame(GameContext& ctx) {
     InitWindow(screenWidth, screenHeight, "Delve");
     SetTargetFPS(120);
+
+    // fresh contex
+    ctx = {};
 
     ctx.tileTexture = LoadTexture(DungeonSprites::texturePath.c_str());
     ctx.map         = loadTileMap(std::string(LEVELS_DIR)+"/map.txt", tileSize);
@@ -29,36 +32,9 @@ inline void initGame(GameContext& ctx) {
     };
 
     // camera
-    ctx.camera.offset   = {screenWidth / 2.f, screenHeight / 2.f};
+    ctx.camera.offset   = {screenWidth/2.f, screenHeight/2.f}; // center screen
     ctx.camera.rotation = 0.f;
     ctx.camera.zoom     = 1.f;
-
-    auto& ecs  = ctx.ecs;
-
-    // player
-    /*
-    ctx.player = ctx.ecs.create();
-
-    ecs.tags[ctx.player].hasPlayer      = true;
-    ecs.tags[ctx.player].hasContainment = true;
-    ecs.transforms[ctx.player].position = tileCenter;
-    ecs.healths[ctx.player].value       = 100.f;
-    ecs.healths[ctx.player].maxValue    = 100.f;
-    ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER_1], 4.f};
-
-    // starting weapons from defs
-    spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 0.f);
-    spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 120.f);
-    spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 240.f);
-    */
-
-    // set up all colliders
-    for (Entity e = 0; e < ecs.capacity(); e++) {
-        ecs.colliders[e].halfSize = {
-            ecs.sprites[e].src.width  * ecs.sprites[e].scale / 2.f,
-            ecs.sprites[e].src.height * ecs.sprites[e].scale / 2.f,
-        };
-    }
 }
 
 inline void updateMainMenu(GameContext& ctx) {
@@ -103,32 +79,16 @@ inline void updateCharSelect(GameContext& ctx) {
     if (IsKeyPressed(KEY_BACKSPACE))
         ctx.state = GameState::MainMenu;
     if (IsKeyPressed(KEY_ONE)) {
-        ctx.player = ctx.ecs.create();
-        ecs.tags[ctx.player].hasPlayer      = true;
-        ecs.tags[ctx.player].hasContainment = true;
-        ecs.transforms[ctx.player].position = getCenterPos(ctx.map);
-        ecs.healths[ctx.player].value       = 100.f;
-        ecs.healths[ctx.player].maxValue    = 100.f;
-        ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER_1], 4.f};
-        spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 0.f);
-        ctx.progress.unlockedWeapons = {};
-
+        ctx.playerID = spawnPlayer(ctx, Defs::characters[Defs::WARRIOR], getCenterPos(ctx.map));
         ctx.state = GameState::Playing;
     }
     if (IsKeyPressed(KEY_TWO)) {
-        ctx.player = ctx.ecs.create();
-        ecs.tags[ctx.player].hasPlayer      = true;
-        ecs.tags[ctx.player].hasContainment = true;
-        ecs.transforms[ctx.player].position = getCenterPos(ctx.map);
-        ecs.healths[ctx.player].value       = 100.f;
-        ecs.healths[ctx.player].maxValue    = 100.f;
-        ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER_2], 4.f};
-
+        ctx.playerID = spawnPlayer(ctx, Defs::characters[Defs::ARCHER], getCenterPos(ctx.map));
         ctx.state = GameState::Playing;
     }
 
     const char* title    = "Character Select";
-    const char* subtitle = "Select with 1 or 2";
+    const char* subtitle = "Press 1 or 2";
     //const char* prompt   = "Select with ";
     const char* quit     = "Press BACK to Return";
 
@@ -145,18 +105,41 @@ inline void updateCharSelect(GameContext& ctx) {
         screenHeight/4 + 90,
         24, RAYWHITE);
 
-    /*
-    float alpha = (sinf(GetTime() * 3.f) + 1.f) / 2.f;
-    DrawText(prompt,
-        screenWidth/2 - MeasureText(prompt, 32)/2,
-        screenHeight/2 + 40,
-        32, Fade(RAYWHITE, alpha));
-        */
-
     DrawText(quit,
         screenWidth/2 - MeasureText(quit, 20)/2,
         screenHeight - 60,
         20, DARKGRAY);
+
+    // render starting characters
+    for(int i = 0; i < Defs::CHARACTER_COUNT; i++) {
+        Defs::CharacterDef& def = Defs::characters[i];
+
+        const Rectangle& src = DungeonSprites::sprites[def.sprite];
+
+        Vector2 renderSize = {
+            .x = src.width * 6.f,
+            .y = src.height * 6.f,
+        };
+        Rectangle destRec = {
+            (screenWidth * (i+1) / (float)(Defs::CHARACTER_COUNT + 1)),
+            screenHeight/1.7f,
+            renderSize.x,
+            renderSize.y,
+        };
+        Vector2 origin = {
+            destRec.width / 2.f,
+            destRec.height / 2.f,
+        };
+        DrawTexturePro(
+            ctx.tileTexture,
+            src,
+            destRec,
+            origin,
+            0.f,
+            WHITE
+        );
+
+    }
 
     EndDrawing();
 }
@@ -168,15 +151,22 @@ inline void updatePlaying(GameContext& ctx) {
     // debug toggle
     if (IsKeyPressed(KEY_B))
         ctx.debugMode = !ctx.debugMode;
+    if (IsKeyPressed(KEY_BACKSPACE))
+        ctx.state = GameState::ConfirmQuit;
 
     // camera zoom
     ctx.camera.zoom = expf(logf(ctx.camera.zoom) + GetMouseWheelMove() * 0.1f);
+    if (IsKeyPressed(KEY_I))
+        ctx.camera.zoom += 0.2f;
+    if (IsKeyPressed(KEY_O))
+        ctx.camera.zoom -= 0.2f;
+
     ctx.camera.zoom = std::clamp(ctx.camera.zoom, 0.1f, 4.f);
 
     // teleport (debug)
     if (IsKeyPressed(KEY_T)) {
         auto mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
-        ecs.transforms[ctx.player].position = mouseWorld;
+        ecs.transforms[ctx.playerID].position = mouseWorld;
     }
 
     // spawn enemy on cursor (debug)
@@ -203,10 +193,10 @@ inline void updatePlaying(GameContext& ctx) {
     systemCollisionResolve(ctx, collisions);
 
     // camera follows player
-    ctx.camera.target = ecs.transforms[ctx.player].position;
+    ctx.camera.target = ecs.transforms[ctx.playerID].position;
 
     // check game over
-    if (!ecs.isAlive(ctx.player) || ecs.healths[ctx.player].value <= 0.f)
+    if (!ecs.isAlive(ctx.playerID) || ecs.healths[ctx.playerID].value <= 0.f)
         ctx.state = GameState::GameOver;
 
     // rendering
@@ -228,6 +218,42 @@ inline void updatePlaying(GameContext& ctx) {
 
     ecs.destroyPending();
     ctx.frameCount++;
+}
+
+inline void updateConfirmQuit(GameContext& ctx) {
+    if (IsKeyPressed(KEY_ENTER)) {
+        ctx.state = GameState::MainMenu;
+        initGame(ctx);
+    }
+
+    const char* title    = "Quit game?";
+    const char* subtitle = "Enter to confirm";
+    const char* quit     = "Press ESC to Quit";
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    BeginMode2D(ctx.camera);
+        systemRenderMap(ctx, GRAY);
+        systemRenderEntities(ctx, GRAY);
+    EndMode2D();
+
+    DrawText(title,
+        screenWidth/2 - MeasureText(title, 80)/2,
+        screenHeight/4,
+        80, RED);
+
+    DrawText(subtitle,
+        screenWidth/2 - MeasureText(subtitle, 24)/2,
+        screenHeight/4 + 90,
+        24, RAYWHITE);
+
+    DrawText(quit,
+        screenWidth/2 - MeasureText(quit, 20)/2,
+        screenHeight - 60,
+        20, DARKGRAY);
+
+    EndDrawing();
 }
 
 inline void updateLevelUp(GameContext& ctx) {

@@ -85,6 +85,30 @@ inline Entity spawnOribtWeapon(GameContext& ctx, const Defs::WeaponDef& def, Ent
 }
 
 // -----------------------------------------------
+// SPAWN PLAYER CHARACTER 
+// -----------------------------------------------
+
+inline Entity spawnPlayer(GameContext& ctx, const Defs::CharacterDef& def, Vector2 pos) {
+    auto& ecs = ctx.ecs;
+
+    Entity e = ecs.create();
+    ecs.tags[e].hasPlayer      = true;
+    ecs.tags[e].hasContainment = true;
+    ecs.transforms[e].position = getCenterPos(ctx.map);
+    ecs.healths[e].value       = def.health;
+    ecs.healths[e].maxValue    = def.health;
+    ecs.sprites[e]             = {DungeonSprites::sprites[def.sprite], def.scale};
+    ctx.progress.unlockedWeapons = {def.startingWeapon};
+
+    if(def.startingWeapon == Defs::WeaponIdx::WEAPON_AXE) {
+        spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE], e, 0.f);
+    }
+
+    initCollider(ecs, e); // default collider
+    return e;
+}
+
+// -----------------------------------------------
 // SPAWNER SYSTEM
 // -----------------------------------------------
 
@@ -115,7 +139,7 @@ inline void systemSpawner(GameContext& ctx) {
     s.waveInterval = std::max(1.f, s.waveInterval - 0.15f);
     int count      = 4 + s.waveNumber * 2;
 
-    Vector2 playerPos = ctx.ecs.transforms[ctx.player].position;
+    Vector2 playerPos = ctx.ecs.transforms[ctx.playerID].position;
     int     poolSize  = enemyPoolForWave(s.waveNumber);
 
     for (int i = 0; i < count; i++) {

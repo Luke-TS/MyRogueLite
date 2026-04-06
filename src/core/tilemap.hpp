@@ -95,27 +95,3 @@ inline std::vector<Rectangle> getNearbySolidTiles(const TileMap& map, Vector2 po
 
     return result;
 }
-
-inline void tileMapRender(TileMap& map, const Texture2D& tex) {
-    for (int y = 0; y < map.height; y++) {
-        for (int x = 0; x < map.width; x++) {
-            auto tile = getTile(map, x, y);
-            if (!tile || tile->solid) continue;
-
-            Rectangle dest = {
-                x * map.tileSize,
-                y * map.tileSize,
-                map.tileSize,
-                map.tileSize
-            };
-
-            DrawTexturePro(
-                tex,
-                DungeonSprites::getFloorTile(tile->spriteIndex),
-                dest, 
-                {0,0}, 
-                0,
-                WHITE);
-        }
-    }
-}

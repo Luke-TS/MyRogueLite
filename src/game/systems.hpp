@@ -7,6 +7,7 @@
 
 #include "game/defs.hpp"
 #include "states.hpp"
+#include <raylib.h>
 
 // angle calculation helpers
 constexpr auto degreesToRadians = 3.14 / 180.f;
@@ -90,7 +91,7 @@ inline void systemOrbit(ECS& ecs, float dt) {
     }
 }
 
-inline void systemRenderEntities(GameContext& ctx) {
+inline void systemRenderEntities(GameContext& ctx, const Color c = WHITE) {
     auto& ecs = ctx.ecs;
 
     for (Entity e = 0; e < ecs.capacity(); e++) 
@@ -121,7 +122,7 @@ inline void systemRenderEntities(GameContext& ctx) {
             destRec,
             origin,
             ecs.transforms[e].angleD,
-            WHITE
+            c 
         );
 
         // DEBUG: draw bounding box
@@ -261,7 +262,7 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
     }
 }
 
-inline void systemRenderMap(GameContext& ctx) {
+inline void systemRenderMap(GameContext& ctx, const Color c = WHITE) {
     auto& map = ctx.map;  
 
     for (int y = 0; y < map.height; y++) {
@@ -282,7 +283,7 @@ inline void systemRenderMap(GameContext& ctx) {
                 dest, 
                 {0,0}, 
                 0,
-                WHITE);
+                c);
         }
     }
 }
@@ -306,7 +307,7 @@ inline void systemBowFire(GameContext& ctx) {
     ctx.progress.bowCooldown = 0.f;
 
     // fire
-    const Vector2 playerPos  = ecs.transforms[ctx.player].position;
+    const Vector2 playerPos  = ecs.transforms[ctx.playerID].position;
     const Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
     const Vector2 dir        = normalize(mouseWorld - playerPos);
 

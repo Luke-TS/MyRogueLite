@@ -1,9 +1,11 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include "core/dungeon_sprites.hpp"
 
 namespace Defs {
+
 
 // -----------------------------------------------
 // ENEMY DEFINITIONS
@@ -113,6 +115,44 @@ inline std::array<WeaponDef, WEAPON_COUNT> weapons = {{
             .speed    = 500.f,
             .fireRate = 4.f, // per second
         },
+    },
+}};
+
+// -----------------------------------------------
+// PLAYER CHARACTER DEFINITIONS
+// -----------------------------------------------
+
+struct CharacterDef {
+    std::string                  name;
+    float                        speed;
+    float                        health;
+    DungeonSprites::SpriteIdx    sprite;
+    float                        scale;
+    Defs::WeaponIdx              startingWeapon;
+};
+
+enum CharacterIdx {
+    WARRIOR,
+    ARCHER,
+
+    CHARACTER_COUNT // total number of base enemies
+};
+inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
+    {
+        .name   = "Warrior",
+        .speed  = 150.f,
+        .health = 100.f,
+        .sprite = DungeonSprites::SpriteIdx::CHARACTER_1,
+        .scale  = 4.f,
+        .startingWeapon = Defs::WeaponIdx::WEAPON_AXE,
+    },
+    {
+        .name   = "Archer",
+        .speed  = 175.f,
+        .health = 100.f,
+        .sprite = DungeonSprites::SpriteIdx::CHARACTER_2,
+        .scale  = 4.f,
+        .startingWeapon = Defs::WeaponIdx::WEAPON_BOW,
     },
 }};
 

@@ -14,6 +14,7 @@ enum class GameState {
     MainMenu,
     CharacterSelect,
     Playing,
+    ConfirmQuit,
     LevelUp,
     GameOver,
 };
@@ -25,18 +26,19 @@ struct SpawnerState {
     int   waveNumber        = 0;
 };
 
-struct PlayerProgress {
+// maintains player information
+// NOTE: game-logic only;
+//       player entity is accessed through ctx.playerID
+struct PlayerInfo {
     int   level     = 1;
     float xp        = 0.f;
     float xpToNext  = 100.f;
 
     float bowCooldown = 0.f; // time since last shot
 
-    // which weapon slots the player has unlocked
-    // indexed into WEAPON_DEFS
-    std::vector<Defs::WeaponIdx> unlockedWeapons = {
-        Defs::WeaponIdx::WEAPON_BOW,
-    }; // starts with axe
+    // which weapons the player has unlocked
+    // indexed into Defs::weapons
+    std::vector<Defs::WeaponIdx> unlockedWeapons = {};
 };
 
 // central game context
@@ -54,8 +56,8 @@ struct GameContext {
 
     // subsystems
     SpawnerState   spawner;
-    PlayerProgress progress;
+    PlayerInfo progress;
 
     // cached entity handles
-    Entity player = -1; // set once in initGame()
+    Entity playerID = -1; // set once in initGame()
 };
