@@ -210,12 +210,20 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
         // entity vs tile
         if (c.b == -1) {
             if (ecs.tags[c.a].hasWallBounce) {
-                auto norm   = normalize(c.penetration); // surface normal
-                auto vin = ecs.velocities[c.a].value;   // vector in
+                auto norm = normalize(c.penetration);
+                auto vin  = ecs.velocities[c.a].value;
+
+                // Reflect velocity
                 auto vout = vin - (2.f * dot(vin, norm) * norm);
                 ecs.velocities[c.a].value = vout;
-                auto theta = asin((dot(vin, norm) / length(vin))) * radiansToDegrees * 2.f;
-                ecs.transforms[c.a].angleD -= (vin.y < 0) ? -theta : theta;
+
+                // Compute angle from velocity
+                float angleRad = atan2(vout.y, vout.x);
+                float angleDeg = angleRad * radiansToDegrees;
+
+                // Adjust because sprite points LEFT by default
+                ecs.transforms[c.a].angleD = angleDeg + 180.f;
+
                 continue;
             }
 
