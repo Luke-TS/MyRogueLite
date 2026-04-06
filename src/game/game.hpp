@@ -192,6 +192,7 @@ inline void updatePlaying(GameContext& ctx) {
     systemSpawner(ctx);
     systemIntegration(ctx.ecs, dt);
     systemOrbit(ctx.ecs, dt);
+    systemEventTimer(ctx, GetFPS());
 
     // collisions
     static std::vector<CollisionEvent> collisions;

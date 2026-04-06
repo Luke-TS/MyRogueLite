@@ -331,4 +331,16 @@ inline void systemBowFire(GameContext& ctx) {
         ecs.sprites[arrow].src.width  * ecs.sprites[arrow].scale / 2.f,
         ecs.sprites[arrow].src.height * ecs.sprites[arrow].scale / 2.f,
     };
+    ecs.markDestroyDelayed(arrow, 2.f); // 3 second active time
+}
+
+inline void systemEventTimer(GameContext& ctx, int fps) {
+    for(Entity e = 0; e < ctx.ecs.capacity(); e++) {
+        auto& timer = ctx.ecs.eventTimers[e];
+        if(timer.thresholdSec < 0.01f) continue;
+
+        if(timer.frameCount++ > timer.thresholdSec * fps)
+            ctx.ecs.markForDestroy(e);
+
+    }
 }

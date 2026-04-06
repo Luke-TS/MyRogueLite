@@ -1,5 +1,6 @@
 #pragma once
 #include <cassert>
+#include <cstdint>
 #include <vector>
 #include <raylib.h>
 
@@ -34,6 +35,15 @@ struct SpriteComp {
 struct HealthComp {
     float value    = 0.f;
     float maxValue = 0.f;
+};
+
+// used for timing events
+//
+// currently used by ecs to mark entities
+// for delayed destruction
+struct TimedComp {
+    float    thresholdSec = 0.f;
+    uint16_t frameCount   = 0;
 };
 
 struct TagComp {
@@ -80,6 +90,7 @@ struct ECS {
             tags       .emplace_back();
             orbits     .emplace_back();
             directions .emplace_back();
+            eventTimers.emplace_back();
             hasOrbit   .push_back(false);
             alive      .push_back(false);
         }
@@ -96,6 +107,7 @@ struct ECS {
         tags       [e] = {};
         orbits     [e] = {};
         directions [e] = {};
+        eventTimers[e] = {};
         hasOrbit   [e] = false;
 
         return e;
@@ -117,6 +129,7 @@ struct ECS {
         tags       [id] = tags[e];
         orbits     [id] = orbits[e];
         directions [id] = directions[e];
+        eventTimers[id] = eventTimers[e];
         hasOrbit   [id] = hasOrbit[e];
         
         return id;
@@ -130,6 +143,7 @@ struct ECS {
         freeList.push_back(e);
     }
 
+
     bool isAlive(Entity e) const {
         if (e < 0 || e >= (int)alive.size()) return false;
         return alive[e];
@@ -141,6 +155,11 @@ struct ECS {
 
     void markForDestroy(Entity e) {
         pendingDestroy.push_back(e);
+    }
+
+    void markDestroyDelayed(Entity e, float delayS) {
+        assert(isAlive(e));
+        eventTimers[e].thresholdSec = delayS;
     }
 
     void destroyPending() {
@@ -159,6 +178,7 @@ struct ECS {
     std::vector<TagComp>       tags;
     std::vector<OrbitComp>     orbits;
     std::vector<DirectionComp> directions;
+    std::vector<TimedComp>     eventTimers;
     std::vector<bool>          hasOrbit;   // presence flag for sparse orbit
 
     // cached views - updated once per frame
