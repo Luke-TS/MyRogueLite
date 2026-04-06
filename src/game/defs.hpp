@@ -134,6 +134,7 @@ struct CharacterDef {
 enum CharacterIdx {
     WARRIOR,
     ARCHER,
+    MAGE,
 
     CHARACTER_COUNT // total number of base enemies
 };
@@ -151,6 +152,14 @@ inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
         .speed  = 175.f,
         .health = 100.f,
         .sprite = DungeonSprites::SpriteIdx::CHARACTER_2,
+        .scale  = 4.f,
+        .startingWeapon = Defs::WeaponIdx::WEAPON_BOW,
+    },
+    {
+        .name   = "Mage",
+        .speed  = 125.f,
+        .health = 80.f,
+        .sprite = DungeonSprites::SpriteIdx::CHARACTER_3,
         .scale  = 4.f,
         .startingWeapon = Defs::WeaponIdx::WEAPON_BOW,
     },

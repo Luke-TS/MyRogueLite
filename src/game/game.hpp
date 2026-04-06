@@ -87,6 +87,13 @@ inline void updateCharSelect(GameContext& ctx) {
         ctx.state = GameState::Playing;
     }
 
+    for(int i = 0; i < Defs::CHARACTER_COUNT; i++) {
+        if (IsKeyPressed(KEY_ONE + i)) { // keys one through CHARACTER_COUNT
+            ctx.playerID = spawnPlayer(ctx, Defs::characters[i], getCenterPos(ctx.map));
+            ctx.state = GameState::Playing;
+        }
+    }
+
     const char* title    = "Character Select";
     const char* subtitle = "Press 1 or 2";
     //const char* prompt   = "Select with ";

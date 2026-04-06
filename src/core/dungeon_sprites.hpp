@@ -18,6 +18,7 @@ enum SpriteIdx {
 
     CHARACTER_1,
     CHARACTER_2,
+    CHARACTER_3,
     WEAPON,
     AXE,
     ARROW,
@@ -44,6 +45,9 @@ inline std::array<Rectangle, COUNT> sprites = {{
 
     // CHARACTER_2
     {9 * grid, 26 * grid, 1 * grid, 2 * grid},
+
+    // CHARACTER_2
+    {11 * grid, 26 * grid, 1 * grid, 2 * grid},
 
     // WEAPON
     {8 * grid, 24 * grid, 1 * grid, 1 * grid},
