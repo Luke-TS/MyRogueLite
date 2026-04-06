@@ -1,38 +1,58 @@
 #pragma once
 
 #include <string>
-#include "core/ecs.hpp"
-#include "core/dungeon_tileset.hpp"
+#include "core/dungeon_sprites.hpp"
+
+namespace Defs {
 
 // -----------------------------------------------
 // ENEMY DEFINITIONS
 // -----------------------------------------------
 
 struct EnemyDef {
-    std::string name;
-    float       speed;
-    float       health;
-    Rectangle   sprite;
-    float       scale;
+    std::string               name;
+    float                     speed;
+    float                     health;
+    DungeonSprites::SpriteIdx sprite;
+    float                     scale;
 };
 
-constexpr auto ZOMBIE = 0;
-inline const EnemyDef ENEMY_DEFS[] = {
+enum EnemyIdx {
+    SKELETON,
+    ZOMBIE,
+    BIGBOI,
+
+    ENEMY_COUNT // total number of base enemies
+};
+inline std::array<EnemyDef, EnemyIdx::ENEMY_COUNT> enemies = {{
+    {
+        .name   = "Skeleton",
+        .speed  = 150.f,
+        .health = 3.f,
+        .sprite = DungeonSprites::SpriteIdx::SKELETON,
+        .scale  = 4.f,
+    },
     {
         .name   = "Zombie",
         .speed  = 150.f,
-        .health = 100.f,
-        .sprite = DungeonTileSet::monsterStart,
+        .health = 5.f,
+        .sprite = DungeonSprites::SpriteIdx::ZOMBIE,
         .scale  = 4.f,
     },
-    // add more enemy types here as you make new sprites
-};
+    {
+        .name   = "BigBoi",
+        .speed  = 120.f,
+        .health = 10.f,
+        .sprite = DungeonSprites::SpriteIdx::BIGBOI,
+        .scale  = 4.f,
+    },
+}};
 
 // -----------------------------------------------
 // WEAPON DEFINITIONS
 // -----------------------------------------------
 
-enum class WeaponKind {
+enum WeaponKind {
     Orbit,       // axe, shield — circles the player
     Projectile,  // arrow — fires toward cursor
 };
@@ -49,26 +69,32 @@ struct ProjectileParams {
 };
 
 struct WeaponDef {
-    std::string    name;
-    float          damage;
-    WeaponKind     kind;
-    Rectangle      sprite;
-    float          scale;
-    float          rotationSpeedD; // spin of the sprite itself
+    std::string               name;
+    float                     damage;
+    WeaponKind                kind;
+    DungeonSprites::SpriteIdx sprite;
+    float                     scale;
+    float                     rotationSpeedD; // spin of the sprite itself
 
     // only one of these is used depending on kind
     OrbitParams      orbitParams;
     ProjectileParams projParams;
 };
 
-constexpr auto WEAPON_AXE   = 0;
-constexpr auto WEAPON_ARROW = 1;
-inline const WeaponDef WEAPON_DEFS[] = {
+enum WeaponIdx {
+    WEAPON_AXE,
+    WEAPON_BOW,
+    WEAPON_FIRE,
+
+    WEAPON_COUNT // total number of base enemies
+};
+
+inline std::array<WeaponDef, WEAPON_COUNT> weapons = {{
     {
         .name           = "Axe",
         .damage         = 50.f,
         .kind           = WeaponKind::Orbit,
-        .sprite         = DungeonTileSet::axeSprite,
+        .sprite         = DungeonSprites::SpriteIdx::AXE,
         .scale          = 4.f,
         .rotationSpeedD = 720.f,
         .orbitParams    = {
@@ -81,11 +107,13 @@ inline const WeaponDef WEAPON_DEFS[] = {
         .name      = "Bow",
         .damage    = 25.f,
         .kind      = WeaponKind::Projectile,
-        .sprite    = DungeonTileSet::arrowSprite,
+        .sprite    = DungeonSprites::SpriteIdx::BOW,
         .scale     = 4.f,
         .projParams = {
             .speed    = 500.f,
             .fireRate = 4.f, // per second
         },
     },
-};
+}};
+
+}

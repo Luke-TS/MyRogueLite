@@ -5,7 +5,7 @@
 #include <vector>
 #include <raylib.h>
 
-#include "dungeon_tileset.hpp"
+#include "dungeon_sprites.hpp"
 
 struct Tile {
     int spriteIndex;
@@ -32,7 +32,7 @@ inline TileMap createMap(float tileSize, const Vector2 dims) {
         .tileSize = tileSize,
     };
     for(int _ = 0; _ < map.width * map.height; _++) {
-        map.tiles.push_back({DungeonTileSet::randomFloorTileIdx(), false});
+        map.tiles.push_back({DungeonSprites::randomFloorTileIdx(), false});
     }
     return map;
 }
@@ -50,7 +50,7 @@ inline TileMap loadTileMap(const std::string& path, float tileSize) {
             file >> isTile;
             if (isTile) {
                 map.tiles.push_back({
-                    .spriteIndex = DungeonTileSet::randomFloorTileIdx(),
+                    .spriteIndex = DungeonSprites::randomFloorTileIdx(),
                     .solid = false
                 });
             } else {
@@ -104,7 +104,7 @@ inline void tileMapRender(TileMap& map, const Texture2D& tex) {
 
             DrawTexturePro(
                 tex,
-                DungeonTileSet::getFloorTile(tile->spriteIndex),
+                DungeonSprites::getFloorTile(tile->spriteIndex),
                 dest, 
                 {0,0}, 
                 0,

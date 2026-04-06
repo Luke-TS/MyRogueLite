@@ -29,7 +29,7 @@ static void initCollider(ECS& ecs, Entity e) {
 // SPAWN ENEMY
 // -----------------------------------------------
 
-inline Entity spawnEnemy(GameContext& ctx, const EnemyDef& def, Vector2 pos) {
+inline Entity spawnEnemy(GameContext& ctx, const Defs::EnemyDef& def, Vector2 pos) {
     ECS& ecs = ctx.ecs;
 
     Entity e = ecs.create();
@@ -38,7 +38,7 @@ inline Entity spawnEnemy(GameContext& ctx, const EnemyDef& def, Vector2 pos) {
     ecs.transforms[e].position = pos;
     ecs.healths[e].value       = def.health;
     ecs.healths[e].maxValue    = def.health;
-    ecs.sprites[e]             = {def.sprite, def.scale};
+    ecs.sprites[e]             = {DungeonSprites::sprites[def.sprite], def.scale};
     ecs.speeds[e].value        = def.speed; // used by systemEnemyAI
 
     initCollider(ecs, e);
@@ -49,16 +49,16 @@ inline Entity spawnEnemy(GameContext& ctx, const EnemyDef& def, Vector2 pos) {
 // SPAWN WEAPON
 // -----------------------------------------------
 
-inline Entity spawnWeaponForPlayer(GameContext& ctx, const WeaponDef& def, Entity player, float startAngleD) {
+inline Entity spawnOribtWeapon(GameContext& ctx, const Defs::WeaponDef& def, Entity player, float startAngleD) {
     ECS& ecs = ctx.ecs;
 
     Entity w = ecs.create();
     ecs.tags[w].hasWeapon = true;
-    ecs.sprites[w]        = {def.sprite, def.scale};
+    ecs.sprites[w]        = {DungeonSprites::sprites[def.sprite], def.scale};
 
     switch (def.kind) {
 
-        case WeaponKind::Orbit: {
+        case Defs::WeaponKind::Orbit: {
             ecs.hasOrbit[w]  = true;
             ecs.orbits[w]    = {
                 .target     = player,
@@ -70,11 +70,11 @@ inline Entity spawnWeaponForPlayer(GameContext& ctx, const WeaponDef& def, Entit
             break;
         }
 
-        case WeaponKind::Projectile: {
+        case Defs::WeaponKind::Projectile: {
             // projectile weapons aren't entities themselves —
             // they live in PlayerProgress and fire via systemFireArrows.
             // here we just record that the player has this weapon.
-            ctx.progress.unlockedWeapons.push_back(WEAPON_ARROW);
+            ctx.progress.unlockedWeapons.push_back(Defs::WEAPON_BOW);
             ecs.destroy(w); // don't need the entity
             return -1;
         }
@@ -91,11 +91,11 @@ inline Entity spawnWeaponForPlayer(GameContext& ctx, const WeaponDef& def, Entit
 // how far off screen enemies spawn
 constexpr float spawnRadius = 900.f;
 
-// enemy pool per wave — index maps to ENEMY_DEFS
-// early waves only spawn zombies, later waves mix in tougher enemies
+// enemy pool per wave — index maps to Defs::enemies
+// early waves only spawn skeletons, later waves mix in tougher enemies
 static int enemyPoolForWave(int waveNumber) {
     // clamp to available def count
-    int maxDef = (int)std::size(ENEMY_DEFS) - 1;
+    int maxDef = (int)(Defs::ENEMY_COUNT) - 1;
     // every 3 waves, unlock the next enemy type
     return std::min(waveNumber / 3, maxDef);
 }
@@ -121,6 +121,6 @@ inline void systemSpawner(GameContext& ctx) {
     for (int i = 0; i < count; i++) {
         int     defIndex = rand() % (poolSize + 1);
         Vector2 pos      = randomPointOnCircle(playerPos, spawnRadius);
-        spawnEnemy(ctx, ENEMY_DEFS[defIndex], pos);
+        spawnEnemy(ctx, Defs::enemies[defIndex], pos);
     }
 }

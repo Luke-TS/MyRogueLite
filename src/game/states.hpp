@@ -7,6 +7,7 @@
 
 #include "core/ecs.hpp"
 #include "core/tilemap.hpp"
+#include "game/defs.hpp"
 
 // game state enum
 enum class GameState {
@@ -32,7 +33,9 @@ struct PlayerProgress {
 
     // which weapon slots the player has unlocked
     // indexed into WEAPON_DEFS
-    std::vector<int> unlockedWeapons = {0, 1}; // starts with axe + arrow
+    std::vector<Defs::WeaponIdx> unlockedWeapons = {
+        Defs::WeaponIdx::WEAPON_AXE,
+    }; // starts with axe + arrow
 };
 
 // central game context
@@ -40,7 +43,7 @@ struct GameContext {
     // core systems
     ECS       ecs;
     TileMap   map;
-    Camera2D  camera    = {};
+    Camera2D  camera      = {};
     Texture2D tileTexture = {};
 
     // game state

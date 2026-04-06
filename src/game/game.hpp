@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/dungeon_tileset.hpp"
+#include "core/dungeon_sprites.hpp"
 #include "core/tilemap.hpp"
 
 #include "defs.hpp"
@@ -20,7 +20,7 @@ inline void initGame(GameContext& ctx) {
     InitWindow(screenWidth, screenHeight, "Delve");
     SetTargetFPS(120);
 
-    ctx.tileTexture = LoadTexture(DungeonTileSet::texturePath.c_str());
+    ctx.tileTexture = LoadTexture(DungeonSprites::texturePath.c_str());
     ctx.map         = loadTileMap(std::string(LEVELS_DIR)+"/map.txt", tileSize);
 
     Vector2 tileCenter = {
@@ -42,12 +42,12 @@ inline void initGame(GameContext& ctx) {
     ecs.transforms[ctx.player].position = tileCenter;
     ecs.healths[ctx.player].value       = 100.f;
     ecs.healths[ctx.player].maxValue    = 100.f;
-    ecs.sprites[ctx.player]             = {DungeonTileSet::characterStart, 4.f};
+    ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER], 4.f};
 
     // starting weapons from defs
-    spawnWeaponForPlayer(ctx, WEAPON_DEFS[WEAPON_AXE],   ctx.player, 0.f);
-    spawnWeaponForPlayer(ctx, WEAPON_DEFS[WEAPON_AXE],   ctx.player, 120.f);
-    spawnWeaponForPlayer(ctx, WEAPON_DEFS[WEAPON_AXE],   ctx.player, 240.f);
+    spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 0.f);
+    spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 120.f);
+    spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 240.f);
 
     // set up all colliders
     for (Entity e = 0; e < ecs.capacity(); e++) {
@@ -115,7 +115,7 @@ inline void updatePlaying(GameContext& ctx) {
     // spawn enemy on cursor (debug)
     if (IsKeyPressed(KEY_R)) {
         auto mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
-        spawnEnemy(ctx, ENEMY_DEFS[ZOMBIE], mouseWorld);
+        spawnEnemy(ctx, Defs::enemies[Defs::BIGBOI], mouseWorld);
     }
 
     // rebuild cached views

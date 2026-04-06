@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/dungeon_sprites.hpp"
 #include "core/ecs.hpp"
 #include "core/vec2_ops.hpp" // Vector2 overloads
 #include "core/physics.hpp"
@@ -269,7 +270,7 @@ inline void systemRenderMap(GameContext& ctx) {
 
             DrawTexturePro(
                 ctx.tileTexture,
-                DungeonTileSet::getFloorTile(tile->spriteIndex),
+                DungeonSprites::getFloorTile(tile->spriteIndex),
                 dest, 
                 {0,0}, 
                 0,
@@ -283,32 +284,31 @@ inline void systemBowFire(GameContext& ctx) {
     float  dt  = GetFrameTime();
 
     // find the arrow def — could be cached but fine for now
-    const WeaponDef* arrowDef = nullptr;
-    for (auto& def : WEAPON_DEFS) {
-        if (def.kind == WeaponKind::Projectile) {
-            arrowDef = &def;
+    const Defs::WeaponDef* bowDef = nullptr;
+    for (auto& def : Defs::weapons) {
+        if (def.kind == Defs::WeaponKind::Projectile) {
+            bowDef = &def;
             break;
         }
     }
 
     // player hasn't unlocked any projectile weapon yet
-    if (!arrowDef) return;
+    if (!bowDef) return;
 
     // check if player has bow unlocked
-    bool hasArrow = false;
+    bool hasBow = false;
     for (int i : ctx.progress.unlockedWeapons)
-        if (i == WEAPON_ARROW) { hasArrow = true; break; }
-    if (!hasArrow) return;
+        if (i == Defs::WeaponIdx::WEAPON_BOW) { hasBow = true; break; }
+    if (!hasBow) return;
 
     // accumulate time and fire on interval
     ctx.progress.bowCooldown += dt;
-    float fireInterval = 1.f / arrowDef->projParams.fireRate;
+    float fireInterval = 1.f / bowDef->projParams.fireRate;
     if (ctx.progress.bowCooldown < fireInterval) return;
     ctx.progress.bowCooldown = 0.f;
 
     // fire
-
-    const Vector2 playerPos = ecs.transforms[ctx.player].position;
+    const Vector2 playerPos  = ecs.transforms[ctx.player].position;
     const Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
     const Vector2 dir        = normalize(mouseWorld - playerPos);
 
@@ -324,10 +324,10 @@ inline void systemBowFire(GameContext& ctx) {
         .hasProjectile  = false,
         .hasWallBounce  = true,
     };
-    ecs.sprites[arrow]             = {arrowDef->sprite, arrowDef->scale};
+    ecs.sprites[arrow]             = {bowDef->sprite, bowDef->scale};
     ecs.transforms[arrow].position = playerPos;
     ecs.transforms[arrow].angleD   = angleD;
-    ecs.velocities[arrow].value    = dir * arrowDef->projParams.speed;
+    ecs.velocities[arrow].value    = dir * bowDef->projParams.speed;
     ecs.colliders[arrow].halfSize  = {
         ecs.sprites[arrow].src.width  * ecs.sprites[arrow].scale / 2.f,
         ecs.sprites[arrow].src.height * ecs.sprites[arrow].scale / 2.f,
