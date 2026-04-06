@@ -25,6 +25,13 @@ inline const Tile* getTile(const TileMap& map, int x, int y) {
     return &map.tiles[y * map.width + x];
 }
 
+inline const Vector2 getCenterPos(const TileMap& map) {
+    return {
+        .x = map.width  * map.tileSize / 2.f,
+        .y = map.height * map.tileSize / 2.f,
+    };
+}
+
 inline TileMap createMap(float tileSize, const Vector2 dims) {
     TileMap map = TileMap{
         .width = static_cast<int>(dims.x),

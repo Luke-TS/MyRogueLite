@@ -33,21 +33,24 @@ inline void initGame(GameContext& ctx) {
     ctx.camera.rotation = 0.f;
     ctx.camera.zoom     = 1.f;
 
-    // player
-    ctx.player = ctx.ecs.create();
     auto& ecs  = ctx.ecs;
+
+    // player
+    /*
+    ctx.player = ctx.ecs.create();
 
     ecs.tags[ctx.player].hasPlayer      = true;
     ecs.tags[ctx.player].hasContainment = true;
     ecs.transforms[ctx.player].position = tileCenter;
     ecs.healths[ctx.player].value       = 100.f;
     ecs.healths[ctx.player].maxValue    = 100.f;
-    ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER], 4.f};
+    ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER_1], 4.f};
 
     // starting weapons from defs
     spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 0.f);
     spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 120.f);
     spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 240.f);
+    */
 
     // set up all colliders
     for (Entity e = 0; e < ecs.capacity(); e++) {
@@ -60,7 +63,7 @@ inline void initGame(GameContext& ctx) {
 
 inline void updateMainMenu(GameContext& ctx) {
     if (IsKeyPressed(KEY_ENTER))
-        ctx.state = GameState::Playing;
+        ctx.state = GameState::CharacterSelect;
 
     const char* title    = "Delve";
     const char* subtitle = "created with raylib";
@@ -85,6 +88,70 @@ inline void updateMainMenu(GameContext& ctx) {
         screenWidth/2 - MeasureText(prompt, 32)/2,
         screenHeight/2 + 40,
         32, Fade(RAYWHITE, alpha));
+
+    DrawText(quit,
+        screenWidth/2 - MeasureText(quit, 20)/2,
+        screenHeight - 60,
+        20, DARKGRAY);
+
+    EndDrawing();
+}
+
+inline void updateCharSelect(GameContext& ctx) {
+    auto& ecs = ctx.ecs;
+
+    if (IsKeyPressed(KEY_BACKSPACE))
+        ctx.state = GameState::MainMenu;
+    if (IsKeyPressed(KEY_ONE)) {
+        ctx.player = ctx.ecs.create();
+        ecs.tags[ctx.player].hasPlayer      = true;
+        ecs.tags[ctx.player].hasContainment = true;
+        ecs.transforms[ctx.player].position = getCenterPos(ctx.map);
+        ecs.healths[ctx.player].value       = 100.f;
+        ecs.healths[ctx.player].maxValue    = 100.f;
+        ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER_1], 4.f};
+        spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE],   ctx.player, 0.f);
+        ctx.progress.unlockedWeapons = {};
+
+        ctx.state = GameState::Playing;
+    }
+    if (IsKeyPressed(KEY_TWO)) {
+        ctx.player = ctx.ecs.create();
+        ecs.tags[ctx.player].hasPlayer      = true;
+        ecs.tags[ctx.player].hasContainment = true;
+        ecs.transforms[ctx.player].position = getCenterPos(ctx.map);
+        ecs.healths[ctx.player].value       = 100.f;
+        ecs.healths[ctx.player].maxValue    = 100.f;
+        ecs.sprites[ctx.player]             = {DungeonSprites::sprites[DungeonSprites::SpriteIdx::CHARACTER_2], 4.f};
+
+        ctx.state = GameState::Playing;
+    }
+
+    const char* title    = "Character Select";
+    const char* subtitle = "Select with 1 or 2";
+    //const char* prompt   = "Select with ";
+    const char* quit     = "Press BACK to Return";
+
+    BeginDrawing();
+    ClearBackground(BLACK);
+
+    DrawText(title,
+        screenWidth/2 - MeasureText(title, 80)/2,
+        screenHeight/4,
+        80, RED);
+
+    DrawText(subtitle,
+        screenWidth/2 - MeasureText(subtitle, 24)/2,
+        screenHeight/4 + 90,
+        24, RAYWHITE);
+
+    /*
+    float alpha = (sinf(GetTime() * 3.f) + 1.f) / 2.f;
+    DrawText(prompt,
+        screenWidth/2 - MeasureText(prompt, 32)/2,
+        screenHeight/2 + 40,
+        32, Fade(RAYWHITE, alpha));
+        */
 
     DrawText(quit,
         screenWidth/2 - MeasureText(quit, 20)/2,

@@ -16,7 +16,8 @@ enum SpriteIdx {
     FLOOR_BASE,     // starting tile for floor atlas
     ENEMY_BASE,     // starting for enemies
 
-    CHARACTER,
+    CHARACTER_1,
+    CHARACTER_2,
     WEAPON,
     AXE,
     ARROW,
@@ -38,8 +39,11 @@ inline std::array<Rectangle, COUNT> sprites = {{
     // ENEMY_BASE (acts as origin for floor atlas)
     {12 * grid, 29 * grid, 1 * grid, 2 * grid},
 
-    // CHARACTER
+    // CHARACTER_1
     {7 * grid, 26 * grid, 1 * grid, 2 * grid},
+
+    // CHARACTER_2
+    {9 * grid, 26 * grid, 1 * grid, 2 * grid},
 
     // WEAPON
     {8 * grid, 24 * grid, 1 * grid, 1 * grid},

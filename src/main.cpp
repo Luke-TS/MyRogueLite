@@ -8,6 +8,8 @@ int main() {
     while (!WindowShouldClose()) {
         switch (ctx.state) {
             case GameState::MainMenu: updateMainMenu(ctx); break;
+            case GameState::CharacterSelect: 
+                                      updateCharSelect(ctx); break;
             case GameState::Playing:  updatePlaying(ctx);  break;
             case GameState::LevelUp:  updateLevelUp(ctx);  break;
             case GameState::GameOver: updateGameOver(ctx); break;

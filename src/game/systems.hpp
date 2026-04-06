@@ -283,17 +283,7 @@ inline void systemBowFire(GameContext& ctx) {
     ECS&   ecs = ctx.ecs;
     float  dt  = GetFrameTime();
 
-    // find the arrow def — could be cached but fine for now
-    const Defs::WeaponDef* bowDef = nullptr;
-    for (auto& def : Defs::weapons) {
-        if (def.kind == Defs::WeaponKind::Projectile) {
-            bowDef = &def;
-            break;
-        }
-    }
-
-    // player hasn't unlocked any projectile weapon yet
-    if (!bowDef) return;
+    const Defs::WeaponDef* bowDef = &Defs::weapons[Defs::WEAPON_BOW];
 
     // check if player has bow unlocked
     bool hasBow = false;
@@ -324,7 +314,7 @@ inline void systemBowFire(GameContext& ctx) {
         .hasProjectile  = false,
         .hasWallBounce  = true,
     };
-    ecs.sprites[arrow]             = {bowDef->sprite, bowDef->scale};
+    ecs.sprites[arrow]             = {DungeonSprites::sprites[DungeonSprites::ARROW], bowDef->scale};
     ecs.transforms[arrow].position = playerPos;
     ecs.transforms[arrow].angleD   = angleD;
     ecs.velocities[arrow].value    = dir * bowDef->projParams.speed;

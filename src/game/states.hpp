@@ -12,6 +12,7 @@
 // game state enum
 enum class GameState {
     MainMenu,
+    CharacterSelect,
     Playing,
     LevelUp,
     GameOver,
@@ -20,7 +21,7 @@ enum class GameState {
 // subsystem states
 struct SpawnerState {
     float timeSinceLastWave = 0.f;
-    float waveInterval      = 10.f;
+    float waveInterval      = 5.f;
     int   waveNumber        = 0;
 };
 
@@ -34,8 +35,8 @@ struct PlayerProgress {
     // which weapon slots the player has unlocked
     // indexed into WEAPON_DEFS
     std::vector<Defs::WeaponIdx> unlockedWeapons = {
-        Defs::WeaponIdx::WEAPON_AXE,
-    }; // starts with axe + arrow
+        Defs::WeaponIdx::WEAPON_BOW,
+    }; // starts with axe
 };
 
 // central game context
