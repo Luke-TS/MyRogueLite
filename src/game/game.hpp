@@ -186,6 +186,7 @@ inline void updatePlaying(GameContext& ctx) {
     ecs.rebuildViews();
 
     // systems
+    // TODO: pass only what needed instead of full context?
     systemPlayerMovement(ctx.ecs, playerSpeed);
     systemEnemyAI(ctx.ecs);
     systemBowFire(ctx);
@@ -194,18 +195,26 @@ inline void updatePlaying(GameContext& ctx) {
     systemOrbit(ctx.ecs, dt);
     systemEventTimer(ctx, GetFPS());
 
-    // collisions
+    // collision events
     static std::vector<CollisionEvent> collisions;
     collisions.clear();
     systemCollisionDetect(ctx, collisions);
     systemCollisionResolve(ctx, collisions);
 
+    // death events
+    static std::vector<DeathEvent> deaths;
+    deaths.clear();
+    systemDeathDetection(ctx, deaths);
+
+    // note: player death 'GameOver' state transition
+    //       occurs here
+    systemDeathResolution(ctx, deaths);
+
+    // player entity should not be destroyed
+    assert(ecs.isAlive(ctx.playerID));
+
     // camera follows player
     ctx.camera.target = ecs.transforms[ctx.playerID].position;
-
-    // check game over
-    if (!ecs.isAlive(ctx.playerID) || ecs.healths[ctx.playerID].value <= 0.f)
-        ctx.state = GameState::GameOver;
 
     // rendering
     BeginDrawing();
@@ -217,10 +226,14 @@ inline void updatePlaying(GameContext& ctx) {
     //systemRenderHUD(ctx);   // health bar, XP bar — drawn in screen space
     EndDrawing();
 
-    // check level up
-    if( ctx.progress.xp >= ctx.progress.xpToNext ) {
-        ctx.progress.xp = 0.f;
-        ctx.progress.xpToNext += 100.f;
+    // check player progress
+    auto& prog = ctx.progress;
+    if( prog.xp >= prog.xpToNext ) {
+        prog.level++;  // level up
+        prog.xp = 0.f; // reset xp
+
+        // scales linearly with player level
+        prog.xpToNext += 100.f * prog.level;
         ctx.state = GameState::LevelUp;
     }
 
@@ -271,7 +284,8 @@ inline void updateLevelUp(GameContext& ctx) {
     const char* header = "LEVEL UP";
     const char* sub    = "Choose an upgrade:";
 
-    // hardcoded for now — hook into defs later
+    // TODO: hook upgrade options into defs
+    // TODO: apply upgrades
     const char* options[] = {
         "[1] Extra Axe",
         "[2] Faster Arrows",

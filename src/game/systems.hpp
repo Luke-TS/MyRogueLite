@@ -243,21 +243,56 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
 
         // weapon vs enemy
         if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
-            //ecs.healths[c.b].value = 0.f;
-            ecs.markForDestroy(c.b);
+            // TODO: add weapon damage component
+            ecs.healths[c.b].value -= 1.f; // hit = 1 hp for now
+
+            // projectiles are destroyed
+            // TODO: modify to support different project on-hit rules
             if(ecs.tags[c.a].hasProjectile)
                 ecs.markForDestroy(c.a);
             
-            ctx.progress.xp += 1.f;
+            // xp equal to maximum heath of enemy
+            ctx.progress.xp += ecs.healths[c.b].maxValue;
             continue;
         }
 
         // enemy vs enemy
+        // pushes back only 25% of colider penetration
+        // to avoid completely overlapping enemies
         if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
-            c.penetration /= 2.f;
-            ecs.transforms[c.a].position += c.penetration / 2.f;
-            ecs.transforms[c.b].position -= c.penetration / 2.f;
+            c.penetration /= 4.f;
+            ecs.transforms[c.a].position += c.penetration;
+            ecs.transforms[c.b].position -= c.penetration;
             continue;
+        }
+    }
+}
+
+struct DeathEvent {
+    Entity e;
+};
+
+inline void systemDeathDetection(GameContext& ctx, std::vector<DeathEvent>& deaths) {
+    auto& ecs = ctx.ecs;
+    for(const auto& p : ecs.players) {
+        if(ecs.healths[p].value < 0.1f) {// dead
+            deaths.push_back({.e = p});
+        }
+    }
+    for(const auto& e : ecs.enemies) {
+        if(ecs.healths[e].value < 0.1f) {// dead
+            deaths.push_back({.e = e});
+        }
+    }
+}
+
+inline void systemDeathResolution(GameContext& ctx, const std::vector<DeathEvent>& deaths) {
+    for(const auto& d : deaths) {
+        if(d.e == ctx.playerID) // player death
+            ctx.state = GameState::GameOver;
+        else {
+            // TODO: add custom death rules and animations here
+            ctx.ecs.markForDestroy(d.e);
         }
     }
 }
