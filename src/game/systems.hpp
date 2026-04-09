@@ -7,6 +7,7 @@
 
 #include "game/defs.hpp"
 #include "states.hpp"
+#include <iostream>
 #include <raylib.h>
 
 // angle calculation helpers
@@ -246,13 +247,16 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
             // TODO: add weapon damage component
             ecs.healths[c.b].value -= 1.f; // hit = 1 hp for now
 
+            // log hit
+            std::cout << "hit:\n  entity: " << c.b << "\n  health: " << ecs.healths[c.b].value << "\n";
+
             // projectiles are destroyed
             // TODO: modify to support different project on-hit rules
             if(ecs.tags[c.a].hasProjectile)
                 ecs.markForDestroy(c.a);
+
+            ecs.transforms[c.b].position -=  normalize(c.penetration) * 20.f;
             
-            // xp equal to maximum heath of enemy
-            ctx.progress.xp += ecs.healths[c.b].maxValue;
             continue;
         }
 
@@ -292,6 +296,9 @@ inline void systemDeathResolution(GameContext& ctx, const std::vector<DeathEvent
             ctx.state = GameState::GameOver;
         else {
             // TODO: add custom death rules and animations here
+
+            // xp equal to maximum heath of enemy
+            ctx.progress.xp += ctx.ecs.healths[d.e].maxValue;
             ctx.ecs.markForDestroy(d.e);
         }
     }
