@@ -9,7 +9,7 @@ int main() {
         switch (ctx.state) {
             case GameState::MainMenu: updateMainMenu(ctx); break;
             case GameState::CharacterSelect: 
-                                      updateCharSelect(ctx); break;
+                                      updateCharacterSelect(ctx); break;
             case GameState::Playing:  updatePlaying(ctx);  break;
             case GameState::ConfirmQuit:  
                                       updateConfirmQuit(ctx);  break;

@@ -7,6 +7,7 @@
 #include "systems.hpp"
 #include "spawner.hpp"
 
+#include <memory>
 #include <raylib.h>
 
 constexpr float playerSpeed = 350.f;
@@ -73,30 +74,22 @@ inline void updateMainMenu(GameContext& ctx) {
     EndDrawing();
 }
 
-inline void updateCharSelect(GameContext& ctx) {
+// check if Vector2 lies inside a centered rectangle
+inline bool VectorInRectangleCentered(const Vector2& pos, const Rectangle& rec) {
+    const Vector2 halfExtents = {rec.width/2.f, rec.height/2.f};
+    return
+        (pos.x >= (rec.x - halfExtents.x) && pos.x <= (rec.x + halfExtents.x)) &&
+        (pos.y >= (rec.y - halfExtents.y) && pos.y <= (rec.y + halfExtents.y));
+}
+
+inline void updateCharacterSelect(GameContext& ctx) {
     auto& ecs = ctx.ecs;
 
     if (IsKeyPressed(KEY_BACKSPACE))
         ctx.state = GameState::MainMenu;
-    if (IsKeyPressed(KEY_ONE)) {
-        ctx.playerID = spawnPlayer(ctx, Defs::characters[Defs::WARRIOR], getCenterPos(ctx.map));
-        ctx.state = GameState::Playing;
-    }
-    if (IsKeyPressed(KEY_TWO)) {
-        ctx.playerID = spawnPlayer(ctx, Defs::characters[Defs::ARCHER], getCenterPos(ctx.map));
-        ctx.state = GameState::Playing;
-    }
-
-    for(int i = 0; i < Defs::CHARACTER_COUNT; i++) {
-        if (IsKeyPressed(KEY_ONE + i)) { // keys one through CHARACTER_COUNT
-            ctx.playerID = spawnPlayer(ctx, Defs::characters[i], getCenterPos(ctx.map));
-            ctx.state = GameState::Playing;
-        }
-    }
 
     const char* title    = "Character Select";
-    const char* subtitle = "Press 1 or 2";
-    //const char* prompt   = "Select with ";
+    const char* subtitle = "Click to select";
     const char* quit     = "Press BACK to Return";
 
     BeginDrawing();
@@ -117,15 +110,14 @@ inline void updateCharSelect(GameContext& ctx) {
         screenHeight - 60,
         20, DARKGRAY);
 
-    // render starting characters
     for(int i = 0; i < Defs::CHARACTER_COUNT; i++) {
-        Defs::CharacterDef& def = Defs::characters[i];
-
+        const Defs::CharacterDef& def = Defs::characters[i];
         const Rectangle& src = DungeonSprites::sprites[def.sprite];
 
+        constexpr auto renderScale = 6.f;
         Vector2 renderSize = {
-            .x = src.width * 6.f,
-            .y = src.height * 6.f,
+            .x = src.width * renderScale, 
+            .y = src.height * renderScale,
         };
         Rectangle destRec = {
             (screenWidth * (i+1) / (float)(Defs::CHARACTER_COUNT + 1)),
@@ -133,6 +125,20 @@ inline void updateCharSelect(GameContext& ctx) {
             renderSize.x,
             renderSize.y,
         };
+
+        // per character mouse events
+        const Vector2 mouse = GetMousePosition();
+        if(VectorInRectangleCentered(mouse, destRec)) {
+            // select with left click
+            if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+                ctx.playerID = spawnPlayer(ctx, def, getCenterPos(ctx.map));
+                ctx.state = GameState::Playing;
+            }
+            // increase sprite scale
+            destRec.width  *= 1.2;
+            destRec.height *= 1.2;
+        }
+
         Vector2 origin = {
             destRec.width / 2.f,
             destRec.height / 2.f,
@@ -145,7 +151,6 @@ inline void updateCharSelect(GameContext& ctx) {
             0.f,
             WHITE
         );
-
     }
 
     EndDrawing();
@@ -242,37 +247,64 @@ inline void updatePlaying(GameContext& ctx) {
 }
 
 inline void updateConfirmQuit(GameContext& ctx) {
-    if (IsKeyPressed(KEY_ENTER)) {
+    // Button dimensions
+    const int btnW = 200, btnH = 60;
+    const int resumeX = screenWidth/2 - btnW - 20;
+    const int resumeY = screenHeight/2;
+    const int quitX   = screenWidth/2 + 20;
+    const int quitY   = screenHeight/2;
+
+    Vector2 mouse = GetMousePosition();
+
+    bool hoverResume = mouse.x >= resumeX && mouse.x <= resumeX + btnW &&
+                       mouse.y >= resumeY && mouse.y <= resumeY + btnH;
+    bool hoverQuit   = mouse.x >= quitX   && mouse.x <= quitX   + btnW &&
+                       mouse.y >= quitY   && mouse.y <= quitY   + btnH;
+
+    // Resume: Enter key or green button click
+    if (hoverResume && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        ctx.state = GameState::Playing;
+    }
+    // Quit: ESC key or red button click
+    if (hoverQuit && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         ctx.state = GameState::MainMenu;
         initGame(ctx);
     }
 
-    const char* title    = "Quit game?";
-    const char* subtitle = "Enter to confirm";
-    const char* quit     = "Press ESC to Quit";
+    const char* title     = "Quit game?";
+    const char* resumeTxt = "RESUME";
+    const char* quitTxt   = "QUIT";
 
     BeginDrawing();
     ClearBackground(BLACK);
-
     BeginMode2D(ctx.camera);
         systemRenderMap(ctx, GRAY);
         systemRenderEntities(ctx, GRAY);
     EndMode2D();
 
+    // Title
     DrawText(title,
         screenWidth/2 - MeasureText(title, 80)/2,
         screenHeight/4,
         80, RED);
 
-    DrawText(subtitle,
-        screenWidth/2 - MeasureText(subtitle, 24)/2,
-        screenHeight/4 + 90,
-        24, RAYWHITE);
+    // ── Resume button (green) ──
+    Color resumeCol = hoverResume ? (Color){0, 200, 80, 255} : (Color){0, 160, 60, 255};
+    DrawRectangle(resumeX, resumeY, btnW, btnH, resumeCol);
+    DrawRectangleLines(resumeX, resumeY, btnW, btnH, WHITE);
+    DrawText(resumeTxt,
+        resumeX + btnW/2 - MeasureText(resumeTxt, 28)/2,
+        resumeY + btnH/2 - 14,
+        28, WHITE);
 
-    DrawText(quit,
-        screenWidth/2 - MeasureText(quit, 20)/2,
-        screenHeight - 60,
-        20, DARKGRAY);
+    // ── Quit button (red) ──
+    Color quitCol = hoverQuit ? (Color){220, 40, 40, 255} : (Color){180, 20, 20, 255};
+    DrawRectangle(quitX, quitY, btnW, btnH, quitCol);
+    DrawRectangleLines(quitX, quitY, btnW, btnH, WHITE);
+    DrawText(quitTxt,
+        quitX + btnW/2 - MeasureText(quitTxt, 28)/2,
+        quitY + btnH/2 - 14,
+        28, WHITE);
 
     EndDrawing();
 }

@@ -248,7 +248,8 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
             ecs.healths[c.b].value -= 1.f; // hit = 1 hp for now
 
             // log hit
-            std::cout << "hit:\n  entity: " << c.b << "\n  health: " << ecs.healths[c.b].value << "\n";
+            // TODO: logging system?
+            // std::cout << "hit:\n  entity: " << c.b << "\n  health: " << ecs.healths[c.b].value << "\n";
 
             // projectiles are destroyed
             // TODO: modify to support different project on-hit rules
