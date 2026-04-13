@@ -6,7 +6,9 @@
 #include "core/physics.hpp"
 
 #include "game/defs.hpp"
+#include "game/game.hpp"
 #include "states.hpp"
+#include <cstdio>
 #include <iostream>
 #include <raylib.h>
 
@@ -152,6 +154,19 @@ struct CollisionEvent {
 inline void systemCollisionDetect(GameContext& ctx, std::vector<CollisionEvent>& out) {
     auto& ecs = ctx.ecs; 
 
+    // player vs enemy detection
+    for (Entity p : ecs.players)
+    {
+        for (Entity e : ecs.enemies)
+        {
+            auto pen = physics::intersectCentered(
+                ecs.transforms[p].position, ecs.colliders[p].halfSize * 2.f,
+                ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f
+            );
+            if (pen) out.push_back({p, e, *pen});
+        }
+    }
+
     // weapon vs enemy detection
     for (Entity w : ecs.weapons)
     {
@@ -270,6 +285,14 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
             ecs.transforms[c.b].position -= c.penetration;
             continue;
         }
+
+        // enemy vs player
+        if (ecs.tags[c.a].hasPlayer && ecs.tags[c.b].hasEnemy) {
+            auto penNomr = normalize(c.penetration);
+            ecs.transforms[c.b].position -= penNomr * 25.f;
+            ecs.healths[c.a].value -= 20.f; 
+            continue;
+        }
     }
 }
 
@@ -386,4 +409,20 @@ inline void systemEventTimer(GameContext& ctx, int fps) {
             ctx.ecs.markForDestroy(e);
 
     }
+}
+
+inline void systemRenderHUD(GameContext& ctx) {
+    const auto& playerHealth = ctx.ecs.healths[ctx.playerID];
+    const auto  healthRatio = playerHealth.value / playerHealth.maxValue;
+
+    char healthTxt[30];
+    snprintf(healthTxt, 30, "Heath: %d/%d", (int)playerHealth.value, (int)playerHealth.maxValue);
+
+    // draw health bar 
+    DrawRectangle(0, 0, healthRatio * GetScreenWidth(), 30, GREEN);
+    DrawRectangleLines(0, 0, GetScreenWidth(), 30, WHITE);
+    DrawText(healthTxt,
+        0 + GetScreenWidth()/2 - MeasureText(healthTxt, 28)/2,
+        0 + 30/2 - 14,
+        28, WHITE);
 }

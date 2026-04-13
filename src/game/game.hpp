@@ -228,7 +228,7 @@ inline void updatePlaying(GameContext& ctx) {
         systemRenderMap(ctx);
         systemRenderEntities(ctx);
     EndMode2D();
-    //systemRenderHUD(ctx);   // health bar, XP bar — drawn in screen space
+    systemRenderHUD(ctx);   // health bar, XP bar — drawn in screen space
     EndDrawing();
 
     // check player progress
@@ -356,38 +356,46 @@ inline void updateLevelUp(GameContext& ctx) {
 }
 
 inline void updateGameOver(GameContext& ctx) {
-    // restart by re-running initGame
-    if (IsKeyPressed(KEY_ENTER)) {
-        ctx = GameContext{};   // reset all state
-        initGame(ctx);
-        ctx.state = GameState::Playing;
-    }
-    if (IsKeyPressed(KEY_ESCAPE))
+    // Button dimensions
+    const int btnW = 200, btnH = 60;
+    const int menuX = screenWidth/2 - btnW/2;
+    const int menuY = screenHeight/2;
+
+    Vector2 mouse = GetMousePosition();
+
+    bool hoverMenu = mouse.x >= menuX && mouse.x <= menuX + btnW &&
+                       mouse.y >= menuY && mouse.y <= menuY + btnH;
+
+    if (hoverMenu && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         ctx.state = GameState::MainMenu;
+        ctx = {};
+        initGame(ctx);
+    }
 
-    const char* header  = "YOU DIED";
-    const char* restart = "Press ENTER to Restart";
-    const char* menu    = "Press ESC for Main Menu";
-
-    float alpha = (sinf(GetTime() * 2.f) + 1.f) / 2.f;
+    const char* title     = "YOU DIED";
+    const char* resumeTxt = "MENU";
 
     BeginDrawing();
     ClearBackground(BLACK);
+    BeginMode2D(ctx.camera);
+        systemRenderMap(ctx, GRAY);
+        systemRenderEntities(ctx, GRAY);
+    EndMode2D();
 
-    DrawText(header,
-        screenWidth/2 - MeasureText(header, 80)/2,
-        screenHeight/3,
+    // Title
+    DrawText(title,
+        screenWidth/2 - MeasureText(title, 80)/2,
+        screenHeight/4,
         80, RED);
 
-    DrawText(restart,
-        screenWidth/2 - MeasureText(restart, 28)/2,
-        screenHeight/2 + 20,
-        28, Fade(RAYWHITE, alpha));
-
-    DrawText(menu,
-        screenWidth/2 - MeasureText(menu, 20)/2,
-        screenHeight/2 + 70,
-        20, DARKGRAY);
+    // ── Menu button (green) ──
+    Color menuCol = RED;
+    DrawRectangle(menuX, menuY, btnW, btnH, menuCol);
+    DrawRectangleLines(menuX, menuY, btnW, btnH, WHITE);
+    DrawText(resumeTxt,
+        menuX + btnW/2 - MeasureText(resumeTxt, 28)/2,
+        menuY + btnH/2 - 14,
+        28, WHITE);
 
     EndDrawing();
 }
