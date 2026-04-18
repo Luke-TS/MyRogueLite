@@ -6,7 +6,6 @@
 
 namespace Defs {
 
-
 // -----------------------------------------------
 // ENEMY DEFINITIONS
 // -----------------------------------------------
@@ -51,71 +50,81 @@ inline std::array<EnemyDef, EnemyIdx::ENEMY_COUNT> enemies = {{
 }};
 
 // -----------------------------------------------
-// WEAPON DEFINITIONS
+// SKILL DEFINITIONS
 // -----------------------------------------------
-
-enum WeaponKind {
-    Orbit,       // axe, shield — circles the player
-    Projectile,  // arrow — fires toward cursor
+enum class EffectType {
+    SpawnProjectile,
+    SpawnOrbit,
+    DealDamage,
 };
 
-struct OrbitParams {
-    float radius;
-    float rotateRate;
-    float startAngleD; // offset for multi-weapon spread
+struct Effect {
+    EffectType type;
+
+    float value0; // generic parameters
+    float value1;
+    int   count;
 };
 
-struct ProjectileParams {
-    float speed;
-    float fireRate; // shots per second
-};
-
-struct WeaponDef {
+struct SkillDef {
     std::string               name;
-    float                     damage;
-    WeaponKind                kind;
+    float                     baseDamage;
     DungeonSprites::SpriteIdx sprite;
     float                     scale;
-    float                     rotationSpeedD; // spin of the sprite itself
 
-    // only one of these is used depending on kind
-    OrbitParams      orbitParams;
-    ProjectileParams projParams;
+    std::vector<Effect> effects;
 };
 
-enum WeaponIdx {
-    WEAPON_AXE,
-    WEAPON_BOW,
-    WEAPON_FIRE,
+enum SkillIdx {
+    SKILL_AXE,
+    SKILL_BOW,
+    SKILL_FIREBALL,
 
-    WEAPON_COUNT // total number of base enemies
+    SKILL_COUNT // total number of base skill
 };
-
-inline std::array<WeaponDef, WEAPON_COUNT> weapons = {{
+inline std::array<SkillDef, SKILL_COUNT> skills = {{
     {
-        .name           = "Axe",
-        .damage         = 50.f,
-        .kind           = WeaponKind::Orbit,
-        .sprite         = DungeonSprites::SpriteIdx::AXE,
-        .scale          = 4.f,
-        .rotationSpeedD = 720.f,
-        .orbitParams    = {
-            .radius      = 128.f,
-            .rotateRate  = 0.25f,
-            .startAngleD = 0.f,
-        },
+        .name = "Axe",
+        .baseDamage = 50.f,
+        .sprite = DungeonSprites::SpriteIdx::AXE,
+        .scale = 4.f,
+        .effects = {
+            {
+                .type = EffectType::SpawnOrbit,
+                .value0 = 128.f,   // radius
+                .value1 = 0.25f,   // rotateRate
+                .count  = 1
+            }
+        }
     },
     {
-        .name      = "Bow",
-        .damage    = 25.f,
-        .kind      = WeaponKind::Projectile,
-        .sprite    = DungeonSprites::SpriteIdx::BOW,
-        .scale     = 4.f,
-        .projParams = {
-            .speed    = 500.f,
-            .fireRate = 4.f, // per second
-        },
+        .name = "Bow",
+        .baseDamage = 25.f,
+        .sprite = DungeonSprites::SpriteIdx::BOW,
+        .scale = 4.f,
+        .effects = {
+            {
+                .type = EffectType::SpawnProjectile,
+                .value0 = 500.f, // speed
+                .value1 = 4.f,   // fireRate
+                .count  = 1
+            }
+        }
     },
+    {
+        .name = "Fireball",
+        .baseDamage = 35.f,
+        .sprite = DungeonSprites::SpriteIdx::BOW,
+        .scale = 4.f,
+        .effects = {
+            {
+                .type = EffectType::SpawnProjectile,
+                .value0 = 300.f, // speed
+                .value1 = 3.f,   // fireRate
+                .count  = 1
+            }
+        }
+    }
 }};
 
 // -----------------------------------------------
@@ -128,7 +137,7 @@ struct CharacterDef {
     float                        health;
     DungeonSprites::SpriteIdx    sprite;
     float                        scale;
-    Defs::WeaponIdx              startingWeapon;
+    Defs::SkillIdx               startingSkill;
 };
 
 enum CharacterIdx {
@@ -145,7 +154,7 @@ inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
         .health = 100.f,
         .sprite = DungeonSprites::SpriteIdx::CHARACTER_1,
         .scale  = 4.f,
-        .startingWeapon = Defs::WeaponIdx::WEAPON_AXE,
+        .startingSkill = SKILL_AXE,
     },
     {
         .name   = "Archer",
@@ -153,7 +162,7 @@ inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
         .health = 100.f,
         .sprite = DungeonSprites::SpriteIdx::CHARACTER_2,
         .scale  = 4.f,
-        .startingWeapon = Defs::WeaponIdx::WEAPON_BOW,
+        .startingSkill = SKILL_BOW,
     },
     {
         .name   = "Mage",
@@ -161,7 +170,7 @@ inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
         .health = 80.f,
         .sprite = DungeonSprites::SpriteIdx::CHARACTER_3,
         .scale  = 4.f,
-        .startingWeapon = Defs::WeaponIdx::WEAPON_BOW,
+        .startingSkill = SKILL_FIREBALL,
     },
 }};
 
