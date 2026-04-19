@@ -6,11 +6,12 @@
 #include "core/physics.hpp"
 
 #include "game/defs.hpp"
-#include "game/game.hpp"
 #include "states.hpp"
+
 #include <cstdio>
-#include <iostream>
 #include <raylib.h>
+
+#include <iostream>
 
 // angle calculation helpers
 constexpr auto degreesToRadians = 3.14 / 180.f;
@@ -226,35 +227,40 @@ inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>
     {
         // entity vs tile
         if (c.b == -1) {
-            if (ecs.tags[c.a].hasWallBounce) {
-                auto norm = normalize(c.penetration);
-                auto vin  = ecs.velocities[c.a].value;
+            // projectile entities
+            if (ecs.tags[c.a].hasWeapon) {
+                bool reflected = false;
+                for(auto& e : ecs.projectiles[c.a].onHitEffects) {
+                    if(e.type == Defs::EffectType::WallBounce) {
+                        auto norm = normalize(c.penetration);
+                        auto vin  = ecs.velocities[c.a].value;
 
-                // Reflect velocity
-                auto vout = vin - (2.f * dot(vin, norm) * norm);
-                ecs.velocities[c.a].value = vout;
+                        // Reflect velocity
+                        auto vout = vin - (2.f * dot(vin, norm) * norm);
+                        ecs.velocities[c.a].value = vout;
 
-                // Compute angle from velocity
-                float angleRad = atan2(vout.y, vout.x);
-                float angleDeg = angleRad * radiansToDegrees;
+                        // Compute angle from velocity
+                        float angleRad = atan2(vout.y, vout.x);
+                        float angleDeg = angleRad * radiansToDegrees;
 
-                // Adjust because sprite points LEFT by default
-                ecs.transforms[c.a].angleD = angleDeg + 180.f;
+                        // Adjust because sprite points LEFT by default
+                        ecs.transforms[c.a].angleD = angleDeg + 180.f;
+
+                        reflected = true;
+                    }
+                }
+                if(!reflected)
+                    ecs.markForDestroy(c.a);
 
                 continue;
             }
 
-            if (ecs.tags[c.a].hasProjectile) { // destroy projectile
-                ecs.markForDestroy(c.a);
-                continue;
-            }
-
-            if (ecs.tags[c.a].hasContainment) { // contain player
+            // other entities
+            if (ecs.tags[c.a].hasContainment) {
                 auto& pos = ecs.transforms[c.a].position;
                 pos += c.penetration;
                 continue;
             }
-            assert(false);
         }
 
         // weapon vs enemy
@@ -354,50 +360,54 @@ inline void systemRenderMap(GameContext& ctx, const Color c = WHITE) {
     }
 }
 
-inline void systemBowFire(GameContext& ctx) {
-    ECS&   ecs = ctx.ecs;
-    float  dt  = GetFrameTime();
+inline void systemProjectile(GameContext& ctx, float dt) {
+    ECS& ecs = ctx.ecs;
 
-    const Defs::WeaponDef* bowDef = &Defs::weapons[Defs::WEAPON_BOW];
-
-    // check if player has bow unlocked
-    bool hasBow = false;
-    for (int i : ctx.progress.unlockedWeapons)
-        if (i == Defs::WeaponIdx::WEAPON_BOW) { hasBow = true; break; }
-    if (!hasBow) return;
-
-    // accumulate time and fire on interval
-    ctx.progress.bowCooldown += dt;
-    float fireInterval = 1.f / bowDef->projParams.fireRate;
-    if (ctx.progress.bowCooldown < fireInterval) return;
-    ctx.progress.bowCooldown = 0.f;
-
-    // fire
-    const Vector2 playerPos  = ecs.transforms[ctx.playerID].position;
     const Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
-    const Vector2 dir        = normalize(mouseWorld - playerPos);
 
-    // compute sprite angle — arrow sprite points right at 180 degrees
-    float angleD = 180.f + atan2f(dir.y, dir.x) * radiansToDegrees;
+    for(const auto& p : ecs.players) {
+        for(auto& s : ecs.skills[p].skills) {
+            for(auto& effect : s.builtEffects) {
+                if(effect.type == Defs::EffectType::SpawnProjectile) {
+                    s.cooldownTimer += dt;
+                    if(!(s.cooldownTimer >= 1.f / effect.value1)) continue;
+                    
+                    // reset cooldown
+                    s.cooldownTimer = 0.f;
 
-    Entity arrow = ecs.create();
-    ecs.tags[arrow] = {
-        .hasPlayer      = false,
-        .hasEnemy       = false,
-        .hasWeapon      = true,
-        .hasContainment = true,
-        .hasProjectile  = false,
-        .hasWallBounce  = true,
-    };
-    ecs.sprites[arrow]             = {DungeonSprites::sprites[DungeonSprites::ARROW], bowDef->scale};
-    ecs.transforms[arrow].position = playerPos;
-    ecs.transforms[arrow].angleD   = angleD;
-    ecs.velocities[arrow].value    = dir * bowDef->projParams.speed;
-    ecs.colliders[arrow].halfSize  = {
-        ecs.sprites[arrow].src.width  * ecs.sprites[arrow].scale / 2.f,
-        ecs.sprites[arrow].src.height * ecs.sprites[arrow].scale / 2.f,
-    };
-    ecs.markDestroyDelayed(arrow, 2.f); // 3 second active time
+                    // fire parameters
+                    const Vector2 playerPos  = ecs.transforms[p].position;
+                    const Vector2 dir        = normalize(mouseWorld - playerPos);
+
+                    auto& def = s.def;
+
+                    Entity proj = ecs.create();
+                    ecs.tags[proj] = {
+                        .hasPlayer      = false,
+                        .hasEnemy       = false,
+                        .hasWeapon      = true,
+                        .hasContainment = true,
+                        .hasProjectile  = false,
+                        .hasWallBounce  = true,
+                    };
+                    ecs.sprites[proj]             = {DungeonSprites::sprites[def->sprite], def->scale};
+                    ecs.transforms[proj].position = playerPos;
+                    ecs.transforms[proj].angleD   = 0;
+                    ecs.velocities[proj].value    = dir * effect.value0;
+                    ecs.colliders[proj].halfSize  = {
+                        ecs.sprites[proj].src.width  * ecs.sprites[proj].scale / 2.f,
+                        ecs.sprites[proj].src.height * ecs.sprites[proj].scale / 2.f,
+                    };
+                    ecs.projectiles[proj] = {
+                        .owner = p,
+                        .damage = s.def->baseDamage,
+                        .onHitEffects = s.builtEffects,
+                    };
+                    ecs.markDestroyDelayed(proj, 2.f); // 2 second active time
+                }
+            }
+        } 
+    }
 }
 
 inline void systemEventTimer(GameContext& ctx, int fps) {

@@ -7,7 +7,6 @@
 #include "systems.hpp"
 #include "spawner.hpp"
 
-#include <memory>
 #include <raylib.h>
 
 constexpr float playerSpeed = 350.f;
@@ -194,7 +193,7 @@ inline void updatePlaying(GameContext& ctx) {
     // TODO: pass only what needed instead of full context?
     systemPlayerMovement(ctx.ecs, playerSpeed);
     systemEnemyAI(ctx.ecs);
-    systemBowFire(ctx);
+    systemProjectile(ctx, dt);
     systemSpawner(ctx);
     systemIntegration(ctx.ecs, dt);
     systemOrbit(ctx.ecs, dt);

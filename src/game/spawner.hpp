@@ -1,9 +1,10 @@
 #pragma once
 
 #include "core/tilemap.hpp"
-#include "core/ecs.hpp"
 #include "defs.hpp"
 #include "game/states.hpp"
+#include "core/ecs.hpp"
+#include "game/skills.hpp"
 
 #include <cmath>
 #include <raylib.h>
@@ -59,38 +60,6 @@ inline Entity spawnEnemy(GameContext& ctx, const Defs::EnemyDef& def, Vector2 po
 // -----------------------------------------------
 // SPAWN PLAYER CHARACTER 
 // -----------------------------------------------
-
-inline void buildSkill(SkillInstance& inst) {
-    // start from base
-    inst.builtEffects = inst.def->effects;
-
-    // apply supports
-    /*
-    for (auto* sup : inst.supports) {
-        applySupport(*sup, inst.builtEffects);
-    }
-    */
-}
-
-inline void buildPlayerSkills(GameContext& ctx, Entity player) {
-    auto& ecs = ctx.ecs;
-    auto& progress = ctx.progress;
-
-    for (auto& s : progress.loadout) {
-        SkillInstance inst;
-        inst.def = &Defs::skills[s.skillIdx];
-
-        /*
-        for (int sup : s.supports) {
-            inst.supports.push_back(&Defs::supports[sup]);
-        }
-        */
-
-        buildSkill(inst);
-
-        ecs.skills[player].skills.push_back(inst);
-    }
-}
 
 inline Entity spawnPlayer(GameContext& ctx, const Defs::CharacterDef& def, Vector2 pos) {
     auto& ecs = ctx.ecs;

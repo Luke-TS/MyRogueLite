@@ -1,9 +1,21 @@
 #pragma once
+
 #include "game/defs.hpp"
 #include <cassert>
 #include <cstdint>
 #include <vector>
 #include <raylib.h>
+
+struct SkillInstance {
+    Defs::SkillDef* def;
+
+    // configuration
+    // std::vector<const SupportDef*> supports;
+
+    // runtime
+    std::vector<Defs::Effect> builtEffects;
+    float cooldownTimer = 0.f;
+};
 
 using Entity = int;
 constexpr Entity NULL_ENTITY = -1;
@@ -68,19 +80,17 @@ struct DirectionComp {
     int value = 1; // 1 = right, -1 = left
 };
 
-struct SkillInstance {
-    const Defs::SkillDef* def;
-
-    // configuration
-    // std::vector<const SupportDef*> supports;
-
-    // runtime
-    std::vector<Defs::Effect> builtEffects;
-    float cooldownTimer = 0.f;
-};
-
 struct SkillComponent {
     std::vector<SkillInstance> skills;
+};
+
+struct ProjectileComponent {
+    Entity owner;
+
+    float damage;
+
+    // effects to run when this hits something
+    std::vector<Defs::Effect> onHitEffects;
 };
 
 // ECS
@@ -107,6 +117,7 @@ struct ECS {
             orbits     .emplace_back();
             directions .emplace_back();
             eventTimers.emplace_back();
+            projectiles.emplace_back();
             skills     .emplace_back();
             hasOrbit   .push_back(false);
             alive      .push_back(false);
@@ -125,6 +136,7 @@ struct ECS {
         orbits     [e] = {};
         directions [e] = {};
         eventTimers[e] = {};
+        projectiles[e] = {};
         skills     [e] = {};
         hasOrbit   [e] = false;
 
@@ -148,6 +160,7 @@ struct ECS {
         orbits     [id] = orbits[e];
         directions [id] = directions[e];
         eventTimers[id] = eventTimers[e];
+        projectiles[id] = projectiles[e];
         skills     [id] = skills[e];
         hasOrbit   [id] = hasOrbit[e];
         
@@ -199,6 +212,7 @@ struct ECS {
     std::vector<DirectionComp> directions;
     std::vector<TimedComp>     eventTimers;
     std::vector<SkillComponent>skills;
+    std::vector<ProjectileComponent>projectiles;
     std::vector<bool>          hasOrbit;   // presence flag for sparse orbit
 
     // cached views - updated once per frame

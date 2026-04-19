@@ -34,8 +34,6 @@ struct PlayerInfo {
     float xp        = 0.f;
     float xpToNext  = 100.f;
 
-    float bowCooldown = 0.f; // time since last shot
-
     // which weapons the player has unlocked
     // indexed into Defs::skills
     std::vector<Defs::SkillIdx> unlockedSkills = {};

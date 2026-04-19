@@ -54,7 +54,8 @@ inline std::array<EnemyDef, EnemyIdx::ENEMY_COUNT> enemies = {{
 // -----------------------------------------------
 enum class EffectType {
     SpawnProjectile,
-    SpawnOrbit,
+    //SpawnOrbit,
+    WallBounce,
     DealDamage,
 };
 
@@ -102,7 +103,7 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
     {
         .name = "Bow",
         .baseDamage = 25.f,
-        .sprite = DungeonSprites::SpriteIdx::BOW,
+        .sprite = DungeonSprites::SpriteIdx::ARROW,
         .scale = 4.f,
         .effects = {
             {
@@ -110,13 +111,16 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
                 .value0 = 500.f, // speed
                 .value1 = 4.f,   // fireRate
                 .count  = 1
+            },
+            {
+                .type = EffectType::WallBounce,
             }
         }
     },
     {
         .name = "Fireball",
         .baseDamage = 35.f,
-        .sprite = DungeonSprites::SpriteIdx::BOW,
+        .sprite = DungeonSprites::SpriteIdx::FIRE,
         .scale = 4.f,
         .effects = {
             {
@@ -124,7 +128,7 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
                 .value0 = 300.f, // speed
                 .value1 = 3.f,   // fireRate
                 .count  = 1
-            }
+            },
         }
     }
 }};
