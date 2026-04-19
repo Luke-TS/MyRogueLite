@@ -76,13 +76,14 @@ struct SkillDef {
 };
 
 enum SkillIdx {
-    SKILL_AXE,
+    //SKILL_AXE,
     SKILL_BOW,
     SKILL_FIREBALL,
 
     SKILL_COUNT // total number of base skill
 };
 inline std::array<SkillDef, SKILL_COUNT> skills = {{
+    /*
     {
         .name = "Axe",
         .baseDamage = 50.f,
@@ -97,6 +98,7 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
             }
         }
     },
+    */
     {
         .name = "Bow",
         .baseDamage = 25.f,
@@ -141,13 +143,14 @@ struct CharacterDef {
 };
 
 enum CharacterIdx {
-    WARRIOR,
+    //WARRIOR,
     ARCHER,
     MAGE,
 
     CHARACTER_COUNT // total number of base enemies
 };
 inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
+    /*
     {
         .name   = "Warrior",
         .speed  = 150.f,
@@ -156,6 +159,7 @@ inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
         .scale  = 4.f,
         .startingSkill = SKILL_AXE,
     },
+    */
     {
         .name   = "Archer",
         .speed  = 175.f,

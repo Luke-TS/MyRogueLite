@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/tilemap.hpp"
+#include "core/ecs.hpp"
 #include "defs.hpp"
 #include "game/states.hpp"
 
@@ -56,47 +57,40 @@ inline Entity spawnEnemy(GameContext& ctx, const Defs::EnemyDef& def, Vector2 po
 }
 
 // -----------------------------------------------
-// SPAWN WEAPON
-// -----------------------------------------------
-
-inline Entity spawnOribtWeapon(GameContext& ctx, const Defs::WeaponDef& def, Entity player, float startAngleD) {
-    ECS& ecs = ctx.ecs;
-
-    Entity w = ecs.create();
-    ecs.tags[w].hasWeapon = true;
-    ecs.sprites[w]        = {DungeonSprites::sprites[def.sprite], def.scale};
-
-    switch (def.kind) {
-
-        case Defs::WeaponKind::Orbit: {
-            ecs.hasOrbit[w]  = true;
-            ecs.orbits[w]    = {
-                .target     = player,
-                .radius     = def.orbitParams.radius,
-                .angleD     = startAngleD,
-                .rotateRate = def.orbitParams.rotateRate,
-            };
-            ecs.transforms[w].rotationSpeedD = def.rotationSpeedD;
-            break;
-        }
-
-        case Defs::WeaponKind::Projectile: {
-            // projectile weapons aren't entities themselves —
-            // they live in PlayerProgress and fire via systemFireArrows.
-            // here we just record that the player has this weapon.
-            ctx.progress.unlockedWeapons.push_back(Defs::WEAPON_BOW);
-            ecs.destroy(w); // don't need the entity
-            return -1;
-        }
-    }
-
-    initCollider(ecs, w);
-    return w;
-}
-
-// -----------------------------------------------
 // SPAWN PLAYER CHARACTER 
 // -----------------------------------------------
+
+inline void buildSkill(SkillInstance& inst) {
+    // start from base
+    inst.builtEffects = inst.def->effects;
+
+    // apply supports
+    /*
+    for (auto* sup : inst.supports) {
+        applySupport(*sup, inst.builtEffects);
+    }
+    */
+}
+
+inline void buildPlayerSkills(GameContext& ctx, Entity player) {
+    auto& ecs = ctx.ecs;
+    auto& progress = ctx.progress;
+
+    for (auto& s : progress.loadout) {
+        SkillInstance inst;
+        inst.def = &Defs::skills[s.skillIdx];
+
+        /*
+        for (int sup : s.supports) {
+            inst.supports.push_back(&Defs::supports[sup]);
+        }
+        */
+
+        buildSkill(inst);
+
+        ecs.skills[player].skills.push_back(inst);
+    }
+}
 
 inline Entity spawnPlayer(GameContext& ctx, const Defs::CharacterDef& def, Vector2 pos) {
     auto& ecs = ctx.ecs;
@@ -108,15 +102,23 @@ inline Entity spawnPlayer(GameContext& ctx, const Defs::CharacterDef& def, Vecto
     ecs.healths[e].value       = def.health;
     ecs.healths[e].maxValue    = def.health;
     ecs.sprites[e]             = {DungeonSprites::sprites[def.sprite], def.scale};
-    ctx.progress.unlockedWeapons = {def.startingWeapon};
 
-    if(def.startingWeapon == Defs::WeaponIdx::WEAPON_AXE) {
-        spawnOribtWeapon(ctx, Defs::weapons[Defs::WEAPON_AXE], e, 0.f);
+    ctx.progress.unlockedSkills = {def.startingSkill};
+
+    // initialize loadout with starting skill
+    for(auto& s : ctx.progress.unlockedSkills) {
+        ctx.progress.loadout.push_back({
+            .skillIdx = s,
+            .supports = {}, // supports currently unused
+        });
     }
+
+    buildPlayerSkills(ctx, e);
 
     initCollider(ecs, e); // default collider
     return e;
 }
+
 
 // -----------------------------------------------
 // SPAWNER SYSTEM

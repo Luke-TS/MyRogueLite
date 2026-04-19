@@ -37,8 +37,15 @@ struct PlayerInfo {
     float bowCooldown = 0.f; // time since last shot
 
     // which weapons the player has unlocked
-    // indexed into Defs::weapons
-    std::vector<Defs::WeaponIdx> unlockedWeapons = {};
+    // indexed into Defs::skills
+    std::vector<Defs::SkillIdx> unlockedSkills = {};
+
+    struct EquippedSkill {
+        Defs:: SkillIdx  skillIdx;
+        std::vector<int> supports; // currently unused
+    };
+
+    std::vector<EquippedSkill> loadout;
 };
 
 // central game context
