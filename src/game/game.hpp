@@ -196,7 +196,7 @@ inline void updatePlaying(GameContext& ctx) {
     //systemOrbit(ctx.ecs, dt);
     systemEventTimer(ctx, GetFPS());
 
-    systemEffectExecution(ctx, dt);
+    systemSkillActivation(ctx, dt);
 
     // collision events
     static CollisionSets collisions;

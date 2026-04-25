@@ -58,3 +58,9 @@ inline Vector2 normalize(const Vector2& v) {
 inline float dot(const Vector2& a, const Vector2& b) {
     return a.x * b.x + a.y * b.y;
 }
+
+inline Vector2 rotate(Vector2 v, float radians) {
+    float c = std::cos(radians);
+    float s = std::sin(radians);
+    return { v.x * c - v.y * s, v.x * s + v.y * c };
+}

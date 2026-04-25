@@ -4,26 +4,25 @@
 #include "game/defs.hpp"
 
 inline void buildSkill(SkillInstance& inst) {
-    // start from base
-    inst.builtEffects = inst.def->effects;
+    // copy the on-hit effect chain from the definition
+    inst.builtEffects = inst.def->onHitEffects;
 
-    // effect defaults
+    // fill in computed values (e.g. damage from baseDamage)
     for(auto& effect : inst.builtEffects) {
         switch(effect.type) {
             case Defs::EffectType::DealDamage:
                 effect.value0 = inst.def->baseDamage;
+                break;
+            case Defs::EffectType::MultiShot:
+                inst.def->projectile.count  = 3;
+                inst.def->projectile.spread = 10.f;
                 break;
             default:
                 break;
         }
     }
 
-    // apply supports
-    /*
-    for (auto* sup : inst.supports) {
-        applySupport(*sup, inst.builtEffects);
-    }
-    */
+    // TODO: apply support gem modifiers here
 }
 
 inline void buildPlayerSkills(GameContext& ctx, Entity player) {
@@ -53,18 +52,13 @@ inline void effectDealDamage(GameContext& ctx, const HitEvent& hit, const Defs::
     ctx.ecs.healths[hit.target].value -= effect.value0;
 };
 
-inline void effectSpawnProjectile(GameContext& ctx, const HitEvent& hit, const Defs::Effect& effect) {
-    assert(effect.type == Defs::EffectType::SpawnProjectile); 
-
-    //ctx.ecs.healths[hit.target].value -= effect.value0;
-};
-
 using EffectFn = void(*)(GameContext&, const HitEvent&, const Defs::Effect&);
 
 constexpr size_t EFX(Defs::EffectType t) { return (size_t)t; }
 
+// Dispatch table indexed by EffectType.
+// nullptr = handled elsewhere (e.g. WallBounce is handled by systemOnWallHitEffects).
 static const EffectFn EffectTable[EFX(Defs::EffectType::Count)] = {
-    [EFX(Defs::EffectType::DealDamage)]      = effectDealDamage,
-    [EFX(Defs::EffectType::SpawnProjectile)] = effectSpawnProjectile,
-    [EFX(Defs::EffectType::WallBounce)]      = nullptr,
+    [EFX(Defs::EffectType::WallBounce)] = nullptr,
+    [EFX(Defs::EffectType::DealDamage)] = effectDealDamage,
 };

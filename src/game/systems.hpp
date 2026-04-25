@@ -346,11 +346,6 @@ inline void systemOnWallHitEffects(
                     ecs.velocities[w.e].value = reflect(ecs.velocities[w.e].value, w.normal);
                     break;
 
-                case Defs::EffectType::SpawnProjectile:
-                    // e.g. splitting arrow fans out on wall contact
-                    // spawnProjectileEffect(ctx, w.e, w.normal, effect);
-                    break;
-
                 case Defs::EffectType::DealDamage:
                     if (!hasWallBounce)
                         ecs.destroy(w.e);
@@ -417,57 +412,76 @@ inline void systemRenderMap(GameContext& ctx, const Color c = WHITE) {
     }
 }
 
-inline void systemEffectExecution(GameContext& ctx, float dt) {
-    ECS& ecs = ctx.ecs;
+// Spawns one projectile for a projectile-type skill.
+// Called once per projectile in the count (spread is applied by the caller).
+inline void spawnProjectile(GameContext& ctx, Entity caster, SkillInstance& skill, Vector2 dir) {
+    auto& ecs = ctx.ecs;
 
-    for(const auto& p : ecs.players) {
-        for(auto& skill : ecs.skills[p].skills) {
-            for(auto& effect : skill.builtEffects) {
-                switch(effect.type) {
-                    case(Defs::EffectType::SpawnProjectile): {
-                        const Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
-                        skill.cooldownTimer += dt;
-                        if(!(skill.cooldownTimer >= (1.f / effect.value1))) continue;
+    Entity proj = ecs.create();
+    ecs.tags[proj] = {
+        .hasWeapon      = true,
+        .hasContainment = true,
+        .hasProjectile  = true,
+    };
+    ecs.sprites[proj]             = {DungeonSprites::sprites[skill.def->sprite], skill.def->scale};
+    ecs.transforms[proj].position = ecs.transforms[caster].position;
+    ecs.velocities[proj].value    = dir * skill.def->projectile.speed;
+    ecs.colliders[proj].halfSize  = {
+        ecs.sprites[proj].src.width  * ecs.sprites[proj].scale / 2.f,
+        ecs.sprites[proj].src.height * ecs.sprites[proj].scale / 2.f,
+    };
+    ecs.projectiles[proj] = {
+        .owner        = caster,
+        .damage       = skill.def->baseDamage,
+        .onHitEffects = skill.builtEffects,
+    };
+    ecs.markDestroyDelayed(proj, 2.f);
+}
 
-                        // reset cooldown
-                        skill.cooldownTimer = 0.f;
+// Handles cooldown and fires projectiles toward the mouse cursor.
+// Supports multi-projectile spread (count > 1).
+inline void activateProjectileSkill(GameContext& ctx, Entity caster, SkillInstance& skill, float dt) {
+    const auto& params = skill.def->projectile;
 
-                        // fire parameters
-                        const Vector2 playerPos  = ecs.transforms[p].position;
-                        const Vector2 dir        = normalize(mouseWorld - playerPos);
+    skill.cooldownTimer += dt;
+    if (skill.cooldownTimer < 1.f / params.fireRate) return;
+    skill.cooldownTimer = 0.f;
 
-                        auto& def = skill.def;
+    const Vector2 origin   = ctx.ecs.transforms[caster].position;
+    const Vector2 mousePos = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
+    const Vector2 baseDir  = normalize(mousePos - origin);
 
-                        Entity proj = ecs.create();
-                        ecs.tags[proj] = {
-                            .hasPlayer      = false,
-                            .hasEnemy       = false,
-                            .hasWeapon      = true,
-                            .hasContainment = true,
-                            .hasProjectile  = true,
-                        };
-                        ecs.sprites[proj]             = {DungeonSprites::sprites[def->sprite], def->scale};
-                        ecs.transforms[proj].position = playerPos;
-                        ecs.transforms[proj].angleD   = 0;
-                        ecs.velocities[proj].value    = dir * effect.value0;
-                        ecs.colliders[proj].halfSize  = {
-                            ecs.sprites[proj].src.width  * ecs.sprites[proj].scale / 2.f,
-                            ecs.sprites[proj].src.height * ecs.sprites[proj].scale / 2.f,
-                        };
-                        ecs.projectiles[proj] = {
-                            .owner = p,
-                            .damage = skill.def->baseDamage,
-                            .onHitEffects = skill.builtEffects,
-                        };
-                        ecs.markDestroyDelayed(proj, 2.f); // 2 second active time
-                        break;
-                    }
-                    // on hit effects do not apply here
-                    case(Defs::EffectType::WallBounce):
-                    case(Defs::EffectType::DealDamage):
-                    default:
-                        break;
-                }
+    for (int i = 0; i < params.count; i++) {
+        // evenly distribute projectiles across the spread arc
+        float angleOffset = 0.f;
+        if (params.count > 1)
+            angleOffset = (i - (params.count - 1) / 2.f) * params.spread * degreesToRadians;
+
+        spawnProjectile(ctx, caster, skill, rotate(baseDir, angleOffset));
+    }
+}
+
+// Placeholder — melee hit-zone or instant resolution against nearby enemies.
+inline void activateMeleeSkill(GameContext& ctx, Entity caster, SkillInstance& skill, float dt) {
+    (void)ctx; (void)caster; (void)skill; (void)dt;
+    // TODO: spawn a short-lived hit-zone entity (or instant overlap check)
+    //       using skill.def->melee.range and skill.def->melee.arcDegrees
+}
+
+// Ticks all player skills and fires those that are off cooldown.
+// Add a new case here for each new SkillType.
+inline void systemSkillActivation(GameContext& ctx, float dt) {
+    auto& ecs = ctx.ecs;
+
+    for (const auto& p : ecs.players) {
+        for (auto& skill : ecs.skills[p].skills) {
+            switch (skill.def->type) {
+                case Defs::SkillType::Projectile:
+                    activateProjectileSkill(ctx, p, skill, dt);
+                    break;
+                case Defs::SkillType::Melee:
+                    activateMeleeSkill(ctx, p, skill, dt);
+                    break;
             }
         }
     }
