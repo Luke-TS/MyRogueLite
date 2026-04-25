@@ -14,11 +14,11 @@
 #include <cstdio>
 #include <raylib.h>
 
-
 // angle calculation helpers
-constexpr auto degreesToRadians = 3.14 / 180.f;
-constexpr auto radiansToDegrees = 1 / degreesToRadians;
-constexpr auto degreesPerRotation = 360;
+// PI is defined by raylib as 3.14159265358979323846f
+constexpr float degreesToRadians   = PI / 180.f;
+constexpr float radiansToDegrees   = 180.f / PI;
+constexpr int   degreesPerRotation = 360;
 
 // moves all player entities using WASD controls
 // speed is determined by speed component
@@ -149,12 +149,11 @@ inline void systemRenderEntities(GameContext& ctx, const Color c = WHITE) {
     }
 }
 
-
 inline void detectPlayerVsEnemy(const GameContext& ctx, std::vector<CollisionEvent>& out) {
     auto& ecs = ctx.ecs;
-    for (Entity p : ecs.players) 
+    for (Entity p : ecs.players)
     {
-        for (Entity e : ecs.players)
+        for (Entity e : ecs.enemies)
         {
             auto pen = physics::intersectCentered(
                 ecs.transforms[p].position, ecs.colliders[p].halfSize * 2.f,
@@ -185,17 +184,20 @@ inline void detectWeaponVsEnemy(const GameContext& ctx, std::vector<CollisionEve
 inline void detectEnemyVsEnemy(const GameContext& ctx, std::vector<CollisionEvent>& out) {
     auto& ecs = ctx.ecs;
 
-    for (int i = 0; i < ecs.enemies.size(); i++)
+    for (int i = 0; i < (int)ecs.enemies.size(); i++)
     {
-        for (int j = i + 1; j < ecs.enemies.size(); j++)
+        for (int j = i + 1; j < (int)ecs.enemies.size(); j++)
         {
+            Entity ei = ecs.enemies[i];
+            Entity ej = ecs.enemies[j];
+
             auto pen = physics::intersectCentered(
-                ecs.transforms[i].position, ecs.colliders[i].halfSize * 2.f,
-                ecs.transforms[j].position, ecs.colliders[j].halfSize * 2.f
+                ecs.transforms[ei].position, ecs.colliders[ei].halfSize * 2.f,
+                ecs.transforms[ej].position, ecs.colliders[ej].halfSize * 2.f
             );
 
-            if (pen) 
-                out.push_back({i, j, *pen});
+            if (pen)
+                out.push_back({ei, ej, *pen});
         }
     }
 }
@@ -204,8 +206,8 @@ inline void detectEntityVsTile(const GameContext& ctx, std::vector<CollisionEven
     auto& ecs = ctx.ecs;
     for (Entity e = 0; e < ecs.capacity(); e++) 
     {
-        if (!ecs.isAlive(e))             continue; // skip
-        //if (!ecs.tags[e].hasContainment) continue; // skip
+        if (!ecs.isAlive(e))            continue;
+        if (!ecs.tags[e].hasContainment) continue;
 
         Rectangle entityRect = physics::centerToRectangle(
             ecs.transforms[e].position,
@@ -225,22 +227,9 @@ inline void detectEntityVsTile(const GameContext& ctx, std::vector<CollisionEven
 
 // detection — calls core/physics, produces collision events
 inline void systemCollisionDetect(const GameContext& ctx, CollisionSets& out) {
-    const auto& ecs = ctx.ecs; 
-    const auto& players = ecs.players;
-    const auto& enemies = ecs.enemies;
-    const auto& weapons = ecs.weapons;
-
-    // player vs enemy detection
     detectPlayerVsEnemy(ctx, out.playerEnemy);
-
-    // weapon vs enemy detection
     detectWeaponVsEnemy(ctx, out.weaponEnemy);
-
-    // enemy vs enemy detection
     detectEnemyVsEnemy(ctx, out.enemyEnemy);
-
-    // entity vs tile detection
-    // runs tile detection for all entities
     detectEntityVsTile(ctx, out.entityTile);
 }
 
@@ -289,8 +278,8 @@ inline void systemCollisionToHitEvents(
     }
     for(auto& c : sets.playerEnemy) {
         hits.push_back({
-            .attacker = c.a,
-            .target   = c.b,
+            .attacker = c.b,  // enemy deals damage to player
+            .target   = c.a,
             .normal   = normalize(c.penetration)
         });
     }
@@ -301,6 +290,11 @@ inline void systemCollisionToHitEvents(
             .normal   = normalize(c.penetration)
         });
     }
+}
+
+inline Vector2 reflect(Vector2 velocity, Vector2 normal) {
+    // v - 2(v·n)n  — normal must be a unit vector
+    return velocity - 2.f * dot(velocity, normal) * normal;
 }
 
 using EffectFn = void(*)(GameContext&, const HitEvent&, const Defs::Effect&);
@@ -338,11 +332,6 @@ inline void systemOnHitEffects(
     }
 }
 
-inline Vector2 reflect(Vector2 velocity, Vector2 normal) {
-    // v - 2(v·n)n
-    return velocity - 2.f * dot(velocity, normal) * normal;
-}
-
 inline void systemOnWallHitEffects(
     GameContext& ctx,
     const std::vector<WallHitEvent>& hits
@@ -354,6 +343,11 @@ inline void systemOnWallHitEffects(
         if (!ecs.tags[w.e].hasProjectile) continue;
 
         auto& proj = ecs.projectiles[w.e];
+
+        // check for WallBounce first so DealDamage knows not to destroy a bouncing projectile
+        bool hasWallBounce = false;
+        for (auto& effect : proj.onHitEffects)
+            if (effect.type == Defs::EffectType::WallBounce) { hasWallBounce = true; break; }
 
         for (auto& effect : proj.onHitEffects) {
             switch (effect.type) {
@@ -368,8 +362,8 @@ inline void systemOnWallHitEffects(
                     break;
 
                 case Defs::EffectType::DealDamage:
-                    // most projectiles just die on wall contact
-                    ecs.destroy(w.e);
+                    if (!hasWallBounce)
+                        ecs.destroy(w.e);
                     break;
 
                 default:
@@ -461,8 +455,7 @@ inline void systemEffectExecution(GameContext& ctx, float dt) {
                             .hasEnemy       = false,
                             .hasWeapon      = true,
                             .hasContainment = true,
-                            .hasProjectile  = false,
-                            .hasWallBounce  = true,
+                            .hasProjectile  = true,
                         };
                         ecs.sprites[proj]             = {DungeonSprites::sprites[def->sprite], def->scale};
                         ecs.transforms[proj].position = playerPos;

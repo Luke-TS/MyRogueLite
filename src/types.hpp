@@ -4,6 +4,7 @@
 #include <vector>
 
 using Entity = int;
+constexpr Entity NULL_ENTITY = -1;
 
 struct CollisionEvent {
     Entity         a, b;
