@@ -50,6 +50,7 @@ inline Entity spawnEnemy(GameContext& ctx, const Defs::EnemyDef& def, Vector2 po
     ecs.transforms[e].position = pos;
     ecs.healths[e].value       = def.health;
     ecs.healths[e].maxValue    = def.health;
+    //ecs.damages[e].value       = def.damage;  
     ecs.sprites[e]             = {DungeonSprites::sprites[def.sprite], def.scale};
     ecs.speeds[e].value        = def.speed; // used by systemEnemyAI
 
@@ -66,10 +67,17 @@ inline Entity spawnPlayer(GameContext& ctx, const Defs::CharacterDef& def, Vecto
 
     Entity e = ecs.create();
     ecs.tags[e].hasPlayer      = true;
-    ecs.tags[e].hasContainment = true;
+    ecs.tags[e].hasContainment = true; // tile containment
+    
     ecs.transforms[e].position = getCenterPos(ctx.map);
-    ecs.healths[e].value       = def.health;
-    ecs.healths[e].maxValue    = def.health;
+
+    // player starts at maximum health
+    ecs.healths[e].maxValue    = def.maxHealth;
+    ecs.healths[e].value       = def.maxHealth;
+
+    ecs.speeds[e].value        = def.speed;
+
+    // copy sprite source Rectangle
     ecs.sprites[e]             = {DungeonSprites::sprites[def.sprite], def.scale};
 
     ctx.progress.unlockedSkills = {def.startingSkill};

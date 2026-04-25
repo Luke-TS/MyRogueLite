@@ -1,10 +1,14 @@
 #pragma once
 
+#include "types.hpp"
+
 #include "game/defs.hpp"
 #include <cassert>
 #include <cstdint>
 #include <vector>
 #include <raylib.h>
+
+constexpr Entity NULL_ENTITY = -1;
 
 struct SkillInstance {
     Defs::SkillDef* def;
@@ -16,9 +20,6 @@ struct SkillInstance {
     std::vector<Defs::Effect> builtEffects;
     float cooldownTimer = 0.f;
 };
-
-using Entity = int;
-constexpr Entity NULL_ENTITY = -1;
 
 // components
 

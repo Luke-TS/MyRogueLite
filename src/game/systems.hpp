@@ -6,19 +6,23 @@
 #include "core/physics.hpp"
 
 #include "game/defs.hpp"
+#include "game/skills.hpp"
 #include "states.hpp"
+
+#include "types.hpp"
 
 #include <cstdio>
 #include <raylib.h>
 
-#include <iostream>
 
 // angle calculation helpers
 constexpr auto degreesToRadians = 3.14 / 180.f;
 constexpr auto radiansToDegrees = 1 / degreesToRadians;
 constexpr auto degreesPerRotation = 360;
 
-inline void systemPlayerMovement(ECS& ecs, float speed) {
+// moves all player entities using WASD controls
+// speed is determined by speed component
+inline void systemPlayerMovement(ECS& ecs) {
     Vector2 moveVec = {0, 0};
     if(IsKeyDown(KEY_D))
         moveVec.x += 1; // value of 1 is arbitrary
@@ -35,7 +39,7 @@ inline void systemPlayerMovement(ECS& ecs, float speed) {
         if (moveDir.x < -0.1f) ecs.directions[p].value = -1;
         if (moveDir.x > +0.1f) ecs.directions[p].value = 1;
 
-        ecs.velocities[p].value = moveDir * speed;
+        ecs.velocities[p].value = moveDir * ecs.speeds[p].value;
     }
 }
 
@@ -145,30 +149,25 @@ inline void systemRenderEntities(GameContext& ctx, const Color c = WHITE) {
     }
 }
 
-struct CollisionEvent {
-    Entity a;
-    Entity b;            // -1 is tile
-    Vector2 penetration; // a into b
-};
 
-// detection — calls core/physics, produces raw events
-inline void systemCollisionDetect(GameContext& ctx, std::vector<CollisionEvent>& out) {
-    auto& ecs = ctx.ecs; 
-
-    // player vs enemy detection
-    for (Entity p : ecs.players)
+inline void detectPlayerVsEnemy(const GameContext& ctx, std::vector<CollisionEvent>& out) {
+    auto& ecs = ctx.ecs;
+    for (Entity p : ecs.players) 
     {
-        for (Entity e : ecs.enemies)
+        for (Entity e : ecs.players)
         {
             auto pen = physics::intersectCentered(
                 ecs.transforms[p].position, ecs.colliders[p].halfSize * 2.f,
                 ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f
             );
-            if (pen) out.push_back({p, e, *pen});
+            if (pen) 
+                out.push_back({p, e, *pen});
         }
     }
+}
 
-    // weapon vs enemy detection
+inline void detectWeaponVsEnemy(const GameContext& ctx, std::vector<CollisionEvent>& out) {
+    auto& ecs = ctx.ecs;
     for (Entity w : ecs.weapons)
     {
         for (Entity e : ecs.enemies)
@@ -177,31 +176,36 @@ inline void systemCollisionDetect(GameContext& ctx, std::vector<CollisionEvent>&
                 ecs.transforms[w].position, ecs.colliders[w].halfSize * 2.f,
                 ecs.transforms[e].position, ecs.colliders[e].halfSize * 2.f
             );
-            if (pen) out.push_back({w, e, *pen});
+            if (pen) 
+                out.push_back({w, e, *pen});
         }
     }
+}
 
-    // enemy vs enemy detection
-    for (Entity e1 : ecs.enemies)
+inline void detectEnemyVsEnemy(const GameContext& ctx, std::vector<CollisionEvent>& out) {
+    auto& ecs = ctx.ecs;
+
+    for (int i = 0; i < ecs.enemies.size(); i++)
     {
-        for (Entity e2 : ecs.enemies)
+        for (int j = i + 1; j < ecs.enemies.size(); j++)
         {
-            if (e1 == e2) continue; // skip
-
             auto pen = physics::intersectCentered(
-                ecs.transforms[e1].position, ecs.colliders[e1].halfSize,
-                ecs.transforms[e2].position, ecs.colliders[e2].halfSize
+                ecs.transforms[i].position, ecs.colliders[i].halfSize * 2.f,
+                ecs.transforms[j].position, ecs.colliders[j].halfSize * 2.f
             );
 
-            if (pen) out.push_back({e1, e2, *pen});
+            if (pen) 
+                out.push_back({i, j, *pen});
         }
     }
+}
 
-    // entity vs tile detection
+inline void detectEntityVsTile(const GameContext& ctx, std::vector<CollisionEvent>& out) {
+    auto& ecs = ctx.ecs;
     for (Entity e = 0; e < ecs.capacity(); e++) 
     {
         if (!ecs.isAlive(e))             continue; // skip
-        if (!ecs.tags[e].hasContainment) continue; // skip
+        //if (!ecs.tags[e].hasContainment) continue; // skip
 
         Rectangle entityRect = physics::centerToRectangle(
             ecs.transforms[e].position,
@@ -213,98 +217,168 @@ inline void systemCollisionDetect(GameContext& ctx, std::vector<CollisionEvent>&
         for (auto& tileRect : tiles) 
         {
             if (auto pen = physics::intersect(entityRect, tileRect)) {
-                out.push_back({e, -1, *pen}); // -1 = tile
+                out.push_back({e, -1, *pen});
             }
         }
     }
 }
 
-// resolution — pure game rules, consumes events
-inline void systemCollisionResolve(GameContext& ctx, std::vector<CollisionEvent>& events) {
+// detection — calls core/physics, produces collision events
+inline void systemCollisionDetect(const GameContext& ctx, CollisionSets& out) {
+    const auto& ecs = ctx.ecs; 
+    const auto& players = ecs.players;
+    const auto& enemies = ecs.enemies;
+    const auto& weapons = ecs.weapons;
+
+    // player vs enemy detection
+    detectPlayerVsEnemy(ctx, out.playerEnemy);
+
+    // weapon vs enemy detection
+    detectWeaponVsEnemy(ctx, out.weaponEnemy);
+
+    // enemy vs enemy detection
+    detectEnemyVsEnemy(ctx, out.enemyEnemy);
+
+    // entity vs tile detection
+    // runs tile detection for all entities
+    detectEntityVsTile(ctx, out.entityTile);
+}
+
+inline void resolveSeparation(GameContext& ctx, CollisionEvent& event) {
+    auto& ecs = ctx.ecs;
+    event.penetration /= 4.f;
+    ecs.transforms[event.a].position += event.penetration;
+    ecs.transforms[event.b].position -= event.penetration;
+}
+
+inline void resolveContained(GameContext& ctx, CollisionEvent& event) {
     auto& ecs = ctx.ecs;
 
-    for (auto& c : events) 
-    {
-        // entity vs tile
-        if (c.b == -1) {
-            // projectile entities
-            if (ecs.tags[c.a].hasWeapon) {
-                bool reflected = false;
-                for(auto& e : ecs.projectiles[c.a].onHitEffects) {
-                    if(e.type == Defs::EffectType::WallBounce) {
-                        auto norm = normalize(c.penetration);
-                        auto vin  = ecs.velocities[c.a].value;
+    if(!ecs.tags[event.a].hasContainment) return;
 
-                        // Reflect velocity
-                        auto vout = vin - (2.f * dot(vin, norm) * norm);
-                        ecs.velocities[c.a].value = vout;
+    ecs.transforms[event.a].position += event.penetration;
+}
 
-                        // Compute angle from velocity
-                        float angleRad = atan2(vout.y, vout.x);
-                        float angleDeg = angleRad * radiansToDegrees;
+// physical resolution only - adjusts entity position
+// containment, separation, knockback, etc.
+inline void systemPhysicsResolve(GameContext& ctx, CollisionSets& sets) {
+    auto& ecs = ctx.ecs;
 
-                        // Adjust because sprite points LEFT by default
-                        ecs.transforms[c.a].angleD = angleDeg + 180.f;
+    for(auto& c : sets.entityTile)
+        resolveContained(ctx, c);
+    for(auto& c : sets.enemyEnemy)
+        resolveSeparation(ctx, c);
 
-                        reflected = true;
-                    }
-                }
-                if(!reflected)
-                    ecs.markForDestroy(c.a);
+    // playerEnemy and weaponEnemy has no positional resolution
+}
 
-                continue;
-            }
 
-            // other entities
-            if (ecs.tags[c.a].hasContainment) {
-                auto& pos = ecs.transforms[c.a].position;
-                pos += c.penetration;
-                continue;
-            }
+inline void systemCollisionToHitEvents(
+    GameContext& ctx,
+    const CollisionSets& sets,
+    std::vector<HitEvent>& hits,
+    std::vector<WallHitEvent>& wallHits
+) {
+    auto& ecs = ctx.ecs;
+
+    for(auto& c : sets.entityTile) {
+        wallHits.push_back({
+            .e = c.a,
+            .normal = normalize(c.penetration)
+        });
+    }
+    for(auto& c : sets.playerEnemy) {
+        hits.push_back({
+            .attacker = c.a,
+            .target   = c.b,
+            .normal   = normalize(c.penetration)
+        });
+    }
+    for(auto& c : sets.weaponEnemy) {
+        hits.push_back({
+            .attacker = c.a,
+            .target   = c.b,
+            .normal   = normalize(c.penetration)
+        });
+    }
+}
+
+using EffectFn = void(*)(GameContext&, const HitEvent&, const Defs::Effect&);
+
+constexpr size_t EFX(Defs::EffectType t) { return (size_t)t; }
+
+static const EffectFn EffectTable[EFX(Defs::EffectType::Count)] = {
+    [EFX(Defs::EffectType::DealDamage)]      = effectDealDamage,
+    [EFX(Defs::EffectType::SpawnProjectile)] = effectSpawnProjectile,
+    [EFX(Defs::EffectType::WallBounce)]      = nullptr,
+};
+
+inline void systemOnHitEffects(
+    GameContext& ctx,
+    const std::vector<HitEvent>& hits
+) {
+    auto& ecs = ctx.ecs;
+
+    for (auto& h : hits) {
+
+        if (ecs.tags[h.attacker].hasProjectile) {
+            // PoE-style: walk the compiled effect chain
+            auto& proj = ecs.projectiles[h.attacker];
+            for (auto& effect : proj.onHitEffects)
+            if (auto fn = EffectTable[(size_t)effect.type])
+                fn(ctx, h, effect);
         }
 
-        // weapon vs enemy
-        if (ecs.tags[c.a].hasWeapon && ecs.tags[c.b].hasEnemy) {
-            // TODO: add weapon damage component
-            ecs.healths[c.b].value -= 1.f; // hit = 1 hp for now
-
-            // log hit
-            // TODO: logging system?
-            // std::cout << "hit:\n  entity: " << c.b << "\n  health: " << ecs.healths[c.b].value << "\n";
-
-            // projectiles are destroyed
-            // TODO: modify to support different project on-hit rules
-            if(ecs.tags[c.a].hasProjectile)
-                ecs.markForDestroy(c.a);
-
-            ecs.transforms[c.b].position -=  normalize(c.penetration) * 20.f;
-            
-            continue;
-        }
-
-        // enemy vs enemy
-        // pushes back only 25% of colider penetration
-        // to avoid completely overlapping enemies
-        if (ecs.tags[c.a].hasEnemy && ecs.tags[c.b].hasEnemy) {
-            c.penetration /= 4.f;
-            ecs.transforms[c.a].position += c.penetration;
-            ecs.transforms[c.b].position -= c.penetration;
-            continue;
-        }
-
-        // enemy vs player
-        if (ecs.tags[c.a].hasPlayer && ecs.tags[c.b].hasEnemy) {
-            auto penNomr = normalize(c.penetration);
-            ecs.transforms[c.b].position -= penNomr * 25.f;
-            ecs.healths[c.a].value -= 20.f; 
-            continue;
+        else if (ecs.tags[h.attacker].hasEnemy) {
+            // Flat stats: no gem chain, just read from enemy component directly
+            //TODO: applyEnemyContactHit(ctx, h);
+            ecs.healths[h.target].value -= 5.f;
+            ecs.transforms[h.attacker].position -=  normalize(h.normal) * 20.f;
         }
     }
 }
 
-struct DeathEvent {
-    Entity e;
-};
+inline Vector2 reflect(Vector2 velocity, Vector2 normal) {
+    // v - 2(v·n)n
+    return velocity - 2.f * dot(velocity, normal) * normal;
+}
+
+inline void systemOnWallHitEffects(
+    GameContext& ctx,
+    const std::vector<WallHitEvent>& hits
+) {
+    auto& ecs = ctx.ecs;
+
+    for(auto& w : hits) {
+        // players/enemies hitting walls — already position-resolved, nothing more to do
+        if (!ecs.tags[w.e].hasProjectile) continue;
+
+        auto& proj = ecs.projectiles[w.e];
+
+        for (auto& effect : proj.onHitEffects) {
+            switch (effect.type) {
+
+                case Defs::EffectType::WallBounce:
+                    ecs.velocities[w.e].value = reflect(ecs.velocities[w.e].value, w.normal);
+                    break;
+
+                case Defs::EffectType::SpawnProjectile:
+                    // e.g. splitting arrow fans out on wall contact
+                    // spawnProjectileEffect(ctx, w.e, w.normal, effect);
+                    break;
+
+                case Defs::EffectType::DealDamage:
+                    // most projectiles just die on wall contact
+                    ecs.destroy(w.e);
+                    break;
+
+                default:
+                    break;
+            }
+        }
+    }
+}
+
 
 inline void systemDeathDetection(GameContext& ctx, std::vector<DeathEvent>& deaths) {
     auto& ecs = ctx.ecs;
@@ -360,58 +434,66 @@ inline void systemRenderMap(GameContext& ctx, const Color c = WHITE) {
     }
 }
 
-inline void systemProjectile(GameContext& ctx, float dt) {
+inline void systemEffectExecution(GameContext& ctx, float dt) {
     ECS& ecs = ctx.ecs;
 
-    const Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
-
     for(const auto& p : ecs.players) {
-        for(auto& s : ecs.skills[p].skills) {
-            for(auto& effect : s.builtEffects) {
-                if(effect.type == Defs::EffectType::SpawnProjectile) {
-                    s.cooldownTimer += dt;
-                    if(!(s.cooldownTimer >= 1.f / effect.value1)) continue;
-                    
-                    // reset cooldown
-                    s.cooldownTimer = 0.f;
+        for(auto& skill : ecs.skills[p].skills) {
+            for(auto& effect : skill.builtEffects) {
+                switch(effect.type) {
+                    case(Defs::EffectType::SpawnProjectile): {
+                        const Vector2 mouseWorld = GetScreenToWorld2D(GetMousePosition(), ctx.camera);
+                        skill.cooldownTimer += dt;
+                        if(!(skill.cooldownTimer >= (1.f / effect.value1))) continue;
 
-                    // fire parameters
-                    const Vector2 playerPos  = ecs.transforms[p].position;
-                    const Vector2 dir        = normalize(mouseWorld - playerPos);
+                        // reset cooldown
+                        skill.cooldownTimer = 0.f;
 
-                    auto& def = s.def;
+                        // fire parameters
+                        const Vector2 playerPos  = ecs.transforms[p].position;
+                        const Vector2 dir        = normalize(mouseWorld - playerPos);
 
-                    Entity proj = ecs.create();
-                    ecs.tags[proj] = {
-                        .hasPlayer      = false,
-                        .hasEnemy       = false,
-                        .hasWeapon      = true,
-                        .hasContainment = true,
-                        .hasProjectile  = false,
-                        .hasWallBounce  = true,
-                    };
-                    ecs.sprites[proj]             = {DungeonSprites::sprites[def->sprite], def->scale};
-                    ecs.transforms[proj].position = playerPos;
-                    ecs.transforms[proj].angleD   = 0;
-                    ecs.velocities[proj].value    = dir * effect.value0;
-                    ecs.colliders[proj].halfSize  = {
-                        ecs.sprites[proj].src.width  * ecs.sprites[proj].scale / 2.f,
-                        ecs.sprites[proj].src.height * ecs.sprites[proj].scale / 2.f,
-                    };
-                    ecs.projectiles[proj] = {
-                        .owner = p,
-                        .damage = s.def->baseDamage,
-                        .onHitEffects = s.builtEffects,
-                    };
-                    ecs.markDestroyDelayed(proj, 2.f); // 2 second active time
+                        auto& def = skill.def;
+
+                        Entity proj = ecs.create();
+                        ecs.tags[proj] = {
+                            .hasPlayer      = false,
+                            .hasEnemy       = false,
+                            .hasWeapon      = true,
+                            .hasContainment = true,
+                            .hasProjectile  = false,
+                            .hasWallBounce  = true,
+                        };
+                        ecs.sprites[proj]             = {DungeonSprites::sprites[def->sprite], def->scale};
+                        ecs.transforms[proj].position = playerPos;
+                        ecs.transforms[proj].angleD   = 0;
+                        ecs.velocities[proj].value    = dir * effect.value0;
+                        ecs.colliders[proj].halfSize  = {
+                            ecs.sprites[proj].src.width  * ecs.sprites[proj].scale / 2.f,
+                            ecs.sprites[proj].src.height * ecs.sprites[proj].scale / 2.f,
+                        };
+                        ecs.projectiles[proj] = {
+                            .owner = p,
+                            .damage = skill.def->baseDamage,
+                            .onHitEffects = skill.builtEffects,
+                        };
+                        ecs.markDestroyDelayed(proj, 2.f); // 2 second active time
+                        break;
+                    }
+                    // on hit effects do not apply here
+                    case(Defs::EffectType::WallBounce):
+                    case(Defs::EffectType::DealDamage):
+                    default:
+                        break;
                 }
             }
-        } 
+        }
     }
 }
 
 inline void systemEventTimer(GameContext& ctx, int fps) {
     for(Entity e = 0; e < ctx.ecs.capacity(); e++) {
+        if(!ctx.ecs.isAlive(e)) continue;
         auto& timer = ctx.ecs.eventTimers[e];
         if(timer.thresholdSec < 0.01f) continue;
 

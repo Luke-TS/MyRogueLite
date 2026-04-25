@@ -52,11 +52,12 @@ inline std::array<EnemyDef, EnemyIdx::ENEMY_COUNT> enemies = {{
 // -----------------------------------------------
 // SKILL DEFINITIONS
 // -----------------------------------------------
-enum class EffectType {
+enum class EffectType : int8_t {
     SpawnProjectile,
     //SpawnOrbit,
     WallBounce,
     DealDamage,
+    Count,
 };
 
 struct Effect {
@@ -102,33 +103,43 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
     */
     {
         .name = "Bow",
-        .baseDamage = 25.f,
+        .baseDamage = 2.f,
         .sprite = DungeonSprites::SpriteIdx::ARROW,
         .scale = 4.f,
         .effects = {
             {
                 .type = EffectType::SpawnProjectile,
                 .value0 = 500.f, // speed
-                .value1 = 4.f,   // fireRate
+                .value1 = 3.f,   // fireRate
                 .count  = 1
             },
             {
                 .type = EffectType::WallBounce,
+            },
+            {
+                .type = EffectType::DealDamage,
+                // .value0 = baseDamage
+                // computed at build/activation time
             }
         }
     },
     {
         .name = "Fireball",
-        .baseDamage = 35.f,
+        .baseDamage = 4.f,
         .sprite = DungeonSprites::SpriteIdx::FIRE,
         .scale = 4.f,
         .effects = {
             {
                 .type = EffectType::SpawnProjectile,
                 .value0 = 300.f, // speed
-                .value1 = 3.f,   // fireRate
+                .value1 = 2.f,   // fireRate
                 .count  = 1
             },
+            {
+                .type = EffectType::DealDamage,
+                // .value0 = baseDamage
+                // computed at build/activation time
+            }
         }
     }
 }};
@@ -140,7 +151,7 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
 struct CharacterDef {
     std::string                  name;
     float                        speed;
-    float                        health;
+    float                        maxHealth;
     DungeonSprites::SpriteIdx    sprite;
     float                        scale;
     Defs::SkillIdx               startingSkill;
@@ -151,7 +162,7 @@ enum CharacterIdx {
     ARCHER,
     MAGE,
 
-    CHARACTER_COUNT // total number of base enemies
+    CHARACTER_COUNT // total number of base characters
 };
 inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
     /*
@@ -166,16 +177,16 @@ inline std::array<CharacterDef, CharacterIdx::CHARACTER_COUNT> characters = {{
     */
     {
         .name   = "Archer",
-        .speed  = 175.f,
-        .health = 100.f,
+        .speed  = 350.f,
+        .maxHealth = 100.f,
         .sprite = DungeonSprites::SpriteIdx::CHARACTER_2,
         .scale  = 4.f,
         .startingSkill = SKILL_BOW,
     },
     {
         .name   = "Mage",
-        .speed  = 125.f,
-        .health = 80.f,
+        .speed  = 300.f,
+        .maxHealth = 80.f,
         .sprite = DungeonSprites::SpriteIdx::CHARACTER_3,
         .scale  = 4.f,
         .startingSkill = SKILL_FIREBALL,

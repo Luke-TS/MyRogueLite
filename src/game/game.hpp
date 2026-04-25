@@ -9,9 +9,6 @@
 
 #include <raylib.h>
 
-constexpr float playerSpeed = 350.f;
-constexpr float enemySpeed  = 150.f;
-constexpr float arrowSpeed  = 500.f;
 constexpr int   screenWidth  = 1500;
 constexpr int   screenHeight = 1000;
 constexpr float tileSize     = 500.f;
@@ -191,19 +188,34 @@ inline void updatePlaying(GameContext& ctx) {
 
     // systems
     // TODO: pass only what needed instead of full context?
-    systemPlayerMovement(ctx.ecs, playerSpeed);
+    systemPlayerMovement(ctx.ecs);
     systemEnemyAI(ctx.ecs);
-    systemProjectile(ctx, dt);
+    //systemProjectile(ctx, dt);
     systemSpawner(ctx);
     systemIntegration(ctx.ecs, dt);
-    systemOrbit(ctx.ecs, dt);
+    //systemOrbit(ctx.ecs, dt);
     systemEventTimer(ctx, GetFPS());
 
+    systemEffectExecution(ctx, dt);
+
     // collision events
-    static std::vector<CollisionEvent> collisions;
-    collisions.clear();
+    static CollisionSets collisions;
+    collisions.weaponEnemy.clear();
+    collisions.playerEnemy.clear();
+    collisions.entityTile.clear();
+    collisions.enemyEnemy.clear();
     systemCollisionDetect(ctx, collisions);
-    systemCollisionResolve(ctx, collisions);
+    systemPhysicsResolve(ctx, collisions);
+
+    static std::vector<HitEvent>     hits;
+    hits.clear();
+    static std::vector<WallHitEvent> wallHits;
+    wallHits.clear();
+
+    systemCollisionToHitEvents(ctx, collisions, hits, wallHits);
+
+    systemOnHitEffects(ctx, hits);
+    systemOnWallHitEffects(ctx, wallHits);
 
     // death events
     static std::vector<DeathEvent> deaths;
