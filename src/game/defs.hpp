@@ -122,7 +122,7 @@ inline std::array<SkillDef, SKILL_COUNT> skills = {{
         .scale      = 4.f,
         .projectile = { .speed = 500.f, .fireRate = 3.f, .count = 1 },
         .onHitEffects = {
-            { .type = EffectType::WallBounce },
+            //{ .type = EffectType::WallBounce },
             { .type = EffectType::DealDamage },
             { .type = EffectType::MultiShot  },
         },

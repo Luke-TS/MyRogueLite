@@ -234,8 +234,9 @@ inline void systemCollisionDetect(const GameContext& ctx, CollisionSets& out) {
 }
 
 inline void resolveSeparation(GameContext& ctx, CollisionEvent& event) {
+    constexpr auto allowedOverlapFactor = 5.f;
     auto& ecs = ctx.ecs;
-    event.penetration /= 4.f;
+    event.penetration /= allowedOverlapFactor;
     ecs.transforms[event.a].position += event.penetration;
     ecs.transforms[event.b].position -= event.penetration;
 }
@@ -342,9 +343,12 @@ inline void systemOnWallHitEffects(
         for (auto& effect : proj.onHitEffects) {
             switch (effect.type) {
 
-                case Defs::EffectType::WallBounce:
-                    ecs.velocities[w.e].value = reflect(ecs.velocities[w.e].value, w.normal);
+                case Defs::EffectType::WallBounce: {
+                    Vector2 newVel = reflect(ecs.velocities[w.e].value, w.normal);
+                    ecs.velocities[w.e].value   = newVel;
+                    ecs.transforms[w.e].angleD  = atan2f(newVel.y, newVel.x) * radiansToDegrees - 180.f;
                     break;
+                }
 
                 case Defs::EffectType::DealDamage:
                     if (!hasWallBounce)
@@ -426,6 +430,7 @@ inline void spawnProjectile(GameContext& ctx, Entity caster, SkillInstance& skil
     ecs.sprites[proj]             = {DungeonSprites::sprites[skill.def->sprite], skill.def->scale};
     ecs.transforms[proj].position = ecs.transforms[caster].position;
     ecs.velocities[proj].value    = dir * skill.def->projectile.speed;
+    ecs.transforms[proj].angleD   = atan2f(dir.y, dir.x) * radiansToDegrees - 180.f;
     ecs.colliders[proj].halfSize  = {
         ecs.sprites[proj].src.width  * ecs.sprites[proj].scale / 2.f,
         ecs.sprites[proj].src.height * ecs.sprites[proj].scale / 2.f,
