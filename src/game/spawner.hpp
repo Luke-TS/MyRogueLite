@@ -2,6 +2,7 @@
 
 #include "core/tilemap.hpp"
 #include "defs.hpp"
+#include "game/game.hpp"
 #include "game/states.hpp"
 #include "core/ecs.hpp"
 #include "game/skills.hpp"
@@ -101,8 +102,8 @@ inline Entity spawnPlayer(GameContext& ctx, const Defs::CharacterDef& def, Vecto
 // SPAWNER SYSTEM
 // -----------------------------------------------
 
-// how far off screen enemies spawn
-constexpr float spawnRadius = 900.f;
+constexpr float spawnRadiusMin = 400.f;
+constexpr float spawnRadiusMax = 900.f;
 
 // enemy pool per wave — index maps to Defs::enemies
 // early waves only spawn skeletons, later waves mix in tougher enemies
@@ -131,12 +132,14 @@ inline void systemSpawner(GameContext& ctx) {
     Vector2 playerPos = ctx.ecs.transforms[ctx.playerID].position;
     int     poolSize  = enemyPoolForWave(s.waveNumber);
 
-    const auto nearTiles = getNearbyMapTiles(ctx.map, ctx.ecs.transforms[ctx.playerID].position);
-    const auto numTiles  = nearTiles.size();
+    const auto spawnTiles = getTilesInRing(ctx.map, playerPos, spawnRadiusMin, spawnRadiusMax);
+    if (spawnTiles.empty()) return;
+
+    const auto numTiles = spawnTiles.size();
     for (int i = 0; i < count; i++) {
         int     defIndex  = rand() % (poolSize + 1);
-        int     tileIndex = rand() % (numTiles);
-        Vector2 pos       = randomPointOnRectangle(playerPos, nearTiles[tileIndex]);
+        int     tileIndex = rand() % numTiles;
+        Vector2 pos       = randomPointOnRectangle(playerPos, spawnTiles[tileIndex]);
         spawnEnemy(ctx, Defs::enemies[defIndex], pos);
     }
 }

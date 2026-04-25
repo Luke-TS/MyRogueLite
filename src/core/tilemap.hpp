@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <string>
@@ -82,6 +83,41 @@ inline std::vector<Rectangle> getNearbyMapTiles(const TileMap& map, Vector2 pos)
             const Tile* t = getTile(map, x, y);
             bool outOfBounds = (t == nullptr);
             if (!(outOfBounds || t->solid)) {
+                result.push_back(Rectangle{
+                    x * map.tileSize,
+                    y * map.tileSize,
+                    map.tileSize,
+                    map.tileSize
+                });
+            }
+        }
+    }
+
+    return result;
+}
+
+// Returns non-solid tiles whose centres fall within [minRadius, maxRadius] of pos.
+inline std::vector<Rectangle> getTilesInRing(const TileMap& map, Vector2 pos, float minRadius, float maxRadius) {
+    std::vector<Rectangle> result;
+
+    int tileMin = int(minRadius / map.tileSize);
+    int tileMax = int(maxRadius / map.tileSize) + 1;
+
+    int tx = int(pos.x / map.tileSize);
+    int ty = int(pos.y / map.tileSize);
+
+    for (int y = ty - tileMax; y <= ty + tileMax; y++) {
+        for (int x = tx - tileMax; x <= tx + tileMax; x++) {
+            const Tile* t = getTile(map, x, y);
+            if (t == nullptr || t->solid) continue;
+
+            float cx = (x + 0.5f) * map.tileSize;
+            float cy = (y + 0.5f) * map.tileSize;
+            float dx = cx - pos.x;
+            float dy = cy - pos.y;
+            float dist = sqrtf(dx * dx + dy * dy);
+
+            if (dist >= minRadius && dist <= maxRadius) {
                 result.push_back(Rectangle{
                     x * map.tileSize,
                     y * map.tileSize,
