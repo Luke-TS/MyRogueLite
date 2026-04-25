@@ -9,7 +9,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(Delve src/main.cpp)
-target_include_directories(Delve PRIVATE src)
+target_include_directories(Delve PRIVATE src vendor)
+target_compile_definitions(Delve PRIVATE TOML_HEADER_ONLY=1)
 
 find_package(raylib REQUIRED)
 

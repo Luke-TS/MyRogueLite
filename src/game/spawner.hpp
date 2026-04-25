@@ -109,7 +109,7 @@ constexpr float spawnRadiusMax = 900.f;
 // early waves only spawn skeletons, later waves mix in tougher enemies
 static int enemyPoolForWave(int waveNumber) {
     // clamp to available def count
-    int maxDef = (int)(Defs::ENEMY_COUNT) - 1;
+    int maxDef = (int)Defs::enemies.size() - 1;
     // every 3 waves, unlock the next enemy type
     return std::min(waveNumber / 3, maxDef);
 }

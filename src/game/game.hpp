@@ -17,8 +17,10 @@ inline void initGame(GameContext& ctx) {
     InitWindow(screenWidth, screenHeight, "Delve");
     SetTargetFPS(120);
 
-    // fresh contex
+    // fresh context
     ctx = {};
+
+    Defs::loadDefs();
 
     ctx.tileTexture = LoadTexture(DungeonSprites::texturePath.c_str());
     ctx.map         = loadTileMap(std::string(LEVELS_DIR)+"/map.txt", tileSize);
@@ -106,7 +108,7 @@ inline void updateCharacterSelect(GameContext& ctx) {
         screenHeight - 60,
         20, DARKGRAY);
 
-    for(int i = 0; i < Defs::CHARACTER_COUNT; i++) {
+    for(int i = 0; i < (int)Defs::characters.size(); i++) {
         const Defs::CharacterDef& def = Defs::characters[i];
         const Rectangle& src = DungeonSprites::sprites[def.sprite];
 
@@ -116,7 +118,7 @@ inline void updateCharacterSelect(GameContext& ctx) {
             .y = src.height * renderScale,
         };
         Rectangle destRec = {
-            (screenWidth * (i+1) / (float)(Defs::CHARACTER_COUNT + 1)),
+            (screenWidth * (i+1) / (float)(Defs::characters.size() + 1)),
             screenHeight/1.7f,
             renderSize.x,
             renderSize.y,
@@ -155,6 +157,13 @@ inline void updateCharacterSelect(GameContext& ctx) {
 inline void updatePlaying(GameContext& ctx) {
     ECS&   ecs = ctx.ecs;
     float  dt  = GetFrameTime();
+
+    // hot-reload defs from defs.toml
+    if (IsKeyPressed(KEY_F5)) {
+        Defs::loadDefs();
+        ctx.ecs.skills[ctx.playerID].skills.clear();
+        buildPlayerSkills(ctx, ctx.playerID);
+    }
 
     // debug toggle
     if (IsKeyPressed(KEY_B))

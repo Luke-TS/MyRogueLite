@@ -1,0 +1,74 @@
+# -----------------------------------------------
+# ENEMY DEFINITIONS
+# -----------------------------------------------
+
+[[enemies]]
+name   = "Skeleton"
+speed  = 150.0
+health = 3.0
+sprite = "SKELETON"
+scale  = 4.0
+
+[[enemies]]
+name   = "Zombie"
+speed  = 150.0
+health = 5.0
+sprite = "ZOMBIE"
+scale  = 4.0
+
+[[enemies]]
+name   = "BigBoi"
+speed  = 120.0
+health = 10.0
+sprite = "BIGBOI"
+scale  = 4.0
+
+# -----------------------------------------------
+# SKILL DEFINITIONS
+# Order must match SkillIdx enum (SKILL_BOW=0, SKILL_FIREBALL=1).
+# -----------------------------------------------
+
+[[skills]]
+name       = "Bow"
+type       = "Projectile"
+baseDamage = 2.0
+sprite     = "ARROW"
+scale      = 4.0
+projectile = {speed = 500.0, fireRate = 3.0, count = 1, spread = 0.0}
+onHitEffects = [
+    {type = "DealDamage"},
+    {type = "MultiShot"},
+    {type = "WallBounce"},
+]
+
+[[skills]]
+name       = "Fireball"
+type       = "Projectile"
+baseDamage = 4.0
+sprite     = "FIRE"
+scale      = 4.0
+projectile = {speed = 300.0, fireRate = 2.0, count = 1, spread = 0.0}
+onHitEffects = [
+    {type = "DealDamage"},
+]
+
+# -----------------------------------------------
+# CHARACTER DEFINITIONS
+# startingSkill must match the "name" field of a skill above.
+# -----------------------------------------------
+
+[[characters]]
+name          = "Archer"
+speed         = 350.0
+maxHealth     = 100.0
+sprite        = "CHARACTER_2"
+scale         = 4.0
+startingSkill = "Bow"
+
+[[characters]]
+name          = "Mage"
+speed         = 300.0
+maxHealth     = 80.0
+sprite        = "CHARACTER_3"
+scale         = 4.0
+startingSkill = "Fireball"
