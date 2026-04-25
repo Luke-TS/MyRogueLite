@@ -2,10 +2,6 @@
 
 #include "game/states.hpp"
 #include "game/defs.hpp"
-#include "systems.hpp"
-
-struct SkillInstance; // forward declared from core/ecs.hpp
-struct HitEvent;      // forward declared from core/ecs.hpp
 
 inline void buildSkill(SkillInstance& inst) {
     // start from base
@@ -63,3 +59,12 @@ inline void effectSpawnProjectile(GameContext& ctx, const HitEvent& hit, const D
     //ctx.ecs.healths[hit.target].value -= effect.value0;
 };
 
+using EffectFn = void(*)(GameContext&, const HitEvent&, const Defs::Effect&);
+
+constexpr size_t EFX(Defs::EffectType t) { return (size_t)t; }
+
+static const EffectFn EffectTable[EFX(Defs::EffectType::Count)] = {
+    [EFX(Defs::EffectType::DealDamage)]      = effectDealDamage,
+    [EFX(Defs::EffectType::SpawnProjectile)] = effectSpawnProjectile,
+    [EFX(Defs::EffectType::WallBounce)]      = nullptr,
+};

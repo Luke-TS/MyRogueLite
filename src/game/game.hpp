@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/dungeon_sprites.hpp"
+#include "game/dungeon_sprites.hpp"
 #include "core/tilemap.hpp"
 
 #include "defs.hpp"

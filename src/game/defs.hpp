@@ -2,7 +2,7 @@
 
 #include <string>
 #include <vector>
-#include "core/dungeon_sprites.hpp"
+#include "game/dungeon_sprites.hpp"
 
 namespace Defs {
 

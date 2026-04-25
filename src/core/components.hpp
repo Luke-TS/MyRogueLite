@@ -1,26 +1,12 @@
 #pragma once
 
+// Pure-data engine components — no game-layer dependencies.
+// Game-specific components (SkillComponent, ProjectileComponent) live in game/game_components.hpp.
+
 #include "types.hpp"
-#include "game/defs.hpp"
 
 #include <cstdint>
-#include <vector>
 #include <raylib.h>
-
-// -----------------------------------------------
-// Skill instance (runtime skill state)
-// -----------------------------------------------
-
-struct SkillInstance {
-    Defs::SkillDef* def;
-
-    std::vector<Defs::Effect> builtEffects;
-    float cooldownTimer = 0.f;
-};
-
-// -----------------------------------------------
-// Components
-// -----------------------------------------------
 
 struct TransformComp {
     Vector2 position       = {0, 0};
@@ -50,8 +36,7 @@ struct HealthComp {
     float maxValue = 0.f;
 };
 
-// used for timing events
-// currently used by ecs to mark entities for delayed destruction
+// Used to mark entities for delayed destruction.
 struct TimedComp {
     float    thresholdSec = 0.f;
     uint16_t frameCount   = 0;
@@ -74,16 +59,4 @@ struct OrbitComp {
 
 struct DirectionComp {
     int value = 1; // 1 = right, -1 = left
-};
-
-struct SkillComponent {
-    std::vector<SkillInstance> skills;
-};
-
-struct ProjectileComponent {
-    Entity owner;
-
-    float damage;
-
-    std::vector<Defs::Effect> onHitEffects;
 };

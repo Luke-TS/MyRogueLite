@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/components.hpp"
+#include "game/game_components.hpp"
 
 #include <cassert>
 #include <vector>

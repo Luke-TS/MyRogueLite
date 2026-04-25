@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/dungeon_sprites.hpp"
+#include "game/dungeon_sprites.hpp"
 #include "core/ecs.hpp"
 #include "core/vec2_ops.hpp" // Vector2 overloads
 #include "core/physics.hpp"
@@ -297,16 +297,6 @@ inline Vector2 reflect(Vector2 velocity, Vector2 normal) {
     return velocity - 2.f * dot(velocity, normal) * normal;
 }
 
-using EffectFn = void(*)(GameContext&, const HitEvent&, const Defs::Effect&);
-
-constexpr size_t EFX(Defs::EffectType t) { return (size_t)t; }
-
-static const EffectFn EffectTable[EFX(Defs::EffectType::Count)] = {
-    [EFX(Defs::EffectType::DealDamage)]      = effectDealDamage,
-    [EFX(Defs::EffectType::SpawnProjectile)] = effectSpawnProjectile,
-    [EFX(Defs::EffectType::WallBounce)]      = nullptr,
-};
-
 inline void systemOnHitEffects(
     GameContext& ctx,
     const std::vector<HitEvent>& hits
@@ -372,7 +362,6 @@ inline void systemOnWallHitEffects(
         }
     }
 }
-
 
 inline void systemDeathDetection(GameContext& ctx, std::vector<DeathEvent>& deaths) {
     auto& ecs = ctx.ecs;

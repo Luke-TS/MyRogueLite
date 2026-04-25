@@ -1,11 +1,10 @@
 #pragma once
 
+#include <cstdlib>
 #include <fstream>
 #include <string>
 #include <vector>
 #include <raylib.h>
-
-#include "dungeon_sprites.hpp"
 
 struct Tile {
     int spriteIndex;
@@ -39,7 +38,7 @@ inline TileMap createMap(float tileSize, const Vector2 dims) {
         .tileSize = tileSize,
     };
     for(int _ = 0; _ < map.width * map.height; _++) {
-        map.tiles.push_back({DungeonSprites::randomFloorTileIdx(), false});
+        map.tiles.push_back({rand() % 70, false});
     }
     return map;
 }
@@ -57,7 +56,7 @@ inline TileMap loadTileMap(const std::string& path, float tileSize) {
             file >> isTile;
             if (isTile) {
                 map.tiles.push_back({
-                    .spriteIndex = DungeonSprites::randomFloorTileIdx(),
+                    .spriteIndex = rand() % 70,
                     .solid = false
                 });
             } else {
